@@ -297,25 +297,25 @@ def display_project_readme():
     
     ```
     Data Layer:
-    ├── Synthetic Data Generator
-    ├── Parameter Specifications  
-    └── Raw CSV Output
+    ├── CSV Input Files (cart abandonment data)
+    ├── Data Validator (input validation)
+    └── Universe Computation (7-day window filtering)
     
     Processing Engine:
-    ├── Segmentation Engine
-    ├── Segment Scorer
-    ├── MECE Validator
-    └── Size Optimizer
+    ├── Segmentation Engine (MECE decision tree)
+    ├── Segment Scorer (multi-dimensional scoring)
+    ├── Segment Optimizer (size constraint merging)
+    └── Output Generator (results compilation)
     
     Analytics Layer:
-    ├── Performance Metrics
-    ├── Merge Tracking
-    └── Quality Reports
+    ├── Segment Statistics
+    ├── Merge Operation Tracking
+    └── MECE Compliance Reports
     
     Presentation Layer:
     ├── Streamlit Dashboard
-    ├── Interactive Visualizations
-    └── Export Capabilities
+    ├── Interactive Visualizations (PyVis trees)
+    └── CSV Export Capabilities
     ```
     
     **Data Flow:**

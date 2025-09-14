@@ -18,9 +18,11 @@ Choose a 7-day date range for segmentation analysis
 
 **Step 3: Run Segmentation Engine**
 ```
-All Cart Abandoners → AOV Analysis → Engagement Analysis → Final Segments
-                         ↓                 ↓                    ↓
-                    High/Med/Low    High/Low Engagement   5 Distinct Segments
+All Cart Abandoners → Multi-Dimensional Analysis → Segment Combinations → Size Validation → Final Segments
+                              ↓                         ↓                    ↓             
+                      AOV (High/Mid/Low)        3×2×2 = 12 Initial      Merge Undersized
+                     Engagement (High/Low)         Combinations            Segments     
+                    Profitability (High/Low)
 ```
 
 **Step 4: Scoring and Ranking**
