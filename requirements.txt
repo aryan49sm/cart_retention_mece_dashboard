@@ -2,3 +2,7 @@ pandas
 ydata-profiling
 setuptools
 wheel
+streamlit
+plotly
+numpy
+datetime
