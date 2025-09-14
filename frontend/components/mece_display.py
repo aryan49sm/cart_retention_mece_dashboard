@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import json
 import os
 
@@ -23,9 +24,6 @@ def display_mece_report(output_directory):
         # Load the MECE report
         with open(json_path, 'r') as f:
             report = json.load(f)
-        
-        # Display overall compliance status
-        st.subheader("🎯 MECE Compliance Overview")
         
         # Main compliance metrics
         col1, col2, col3, col4 = st.columns(4)
@@ -74,7 +72,7 @@ def display_mece_report(output_directory):
         st.markdown("---")
         
         # Coverage Analysis
-        st.subheader("📊 Coverage Analysis")
+        st.subheader("Coverage Analysis")
         
         # Calculate coverage percentage
         coverage_percentage = (total_users_assigned / universe_size * 100) if universe_size > 0 else 0
@@ -98,31 +96,26 @@ def display_mece_report(output_directory):
         
         # Overlap Analysis
         st.markdown("---")
-        st.subheader("🔍 Overlap Analysis")
+        st.subheader("Overlap Analysis")
         
         if is_mutually_exclusive:
             st.success("✅ No overlapping users detected")
         else:
             st.error(f"❌ {duplicate_users:,} users appear in multiple segments")
         
-        # Segment counts validation
+        # Segment counts validation - VALIDATION ONLY, no detailed distribution
         if 'segment_counts' in report:
             st.markdown("---")
-            st.subheader("📊 Segment Distribution")
+            st.subheader("Count Validation")
             
             segment_counts = report['segment_counts']
             total_from_counts = sum(segment_counts.values())
             
             # Verify counts match
             if total_from_counts == total_users_assigned:
-                st.success(f"✅ Segment counts verified: {total_from_counts:,} users")
+                st.success(f"✅ Segment counts verified: {total_from_counts:,} users across {len(segment_counts)} segments")
             else:
                 st.error(f"❌ Count mismatch: Segments={total_from_counts:,}, Assigned={total_users_assigned:,}")
-            
-            # Show segment breakdown
-            for segment, count in segment_counts.items():
-                percentage = (count / total_users_assigned * 100) if total_users_assigned > 0 else 0
-                st.write(f"• **{segment}**: {count:,} users ({percentage:.1f}%)")
         
         # Segment Size Analysis
         if 'segment_details' in report:
@@ -144,13 +137,12 @@ def display_mece_report(output_directory):
                 })
             
             if segment_data:
-                import pandas as pd
                 df = pd.DataFrame(segment_data)
                 st.dataframe(df, use_container_width=True, hide_index=True)
         
         # Validation Rules
         st.markdown("---")
-        st.subheader("📋 Analysis Configuration")
+        st.subheader("Analysis Configuration")
         
         col1, col2 = st.columns(2)
         
@@ -172,7 +164,7 @@ def display_mece_report(output_directory):
             st.write(f"• Overall MECE: {'✅ COMPLIANT' if overall_compliance else '❌ NON-COMPLIANT'}")
         
         # Raw Report Data (Expandable)
-        with st.expander("🔧 Raw Report Data"):
+        with st.expander("ℹ️ Raw Report Data"):
             st.json(report)
         
         # Download button

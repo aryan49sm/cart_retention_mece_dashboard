@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 from datetime import datetime, timedelta
+import json
 
 def get_available_output_directories():
     """
@@ -232,7 +233,6 @@ def load_segments_data(output_directory):
         # Load MECE report
         mece_path = os.path.join(base_path, "mece_report.json")
         if os.path.exists(mece_path):
-            import json
             with open(mece_path, 'r') as f:
                 data['mece'] = json.load(f)
         
@@ -291,27 +291,6 @@ def get_segment_summary_stats(segments_df):
     }
     
     return stats
-
-def format_number(number):
-    """
-    Format numbers with commas for display.
-    
-    Args:
-        number: Number to format
-    
-    Returns:
-        str: Formatted number string
-    """
-    
-    if isinstance(number, (int, float)):
-        if number >= 1000000:
-            return f"{number/1000000:.1f}M"
-        elif number >= 1000:
-            return f"{number/1000:.1f}K"
-        else:
-            return f"{number:,.0f}"
-    
-    return str(number)
 
 def get_performance_metrics(segments_df):
     """

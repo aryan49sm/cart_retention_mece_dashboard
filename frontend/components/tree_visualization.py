@@ -1,444 +1,613 @@
+"""
+Clean, modular tree visualization component for cart abandoner segmentation.
+Contains only essential functions with standard Python practices.
+"""
+
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
-import json
-import os
 import pandas as pd
-import numpy as np
+import os
+import json
 from datetime import datetime
-import math
+from pyvis.network import Network
+
+class TreeVisualizationConfig:
+    """Configuration constants for tree visualization."""
+    
+    # Canvas settings
+    HEIGHT = "700px"
+    WIDTH = "100%"
+    BACKGROUND_COLOR = "#000000"  # Pure black background
+    FONT_COLOR = "#ffffff"
+    
+    # Physics settings
+    PHYSICS_OPTIONS = """
+    var options = {
+      "physics": {
+        "enabled": true,
+        "hierarchicalRepulsion": {
+          "centralGravity": 0.4,
+          "springLength": 120,
+          "springConstant": 0.1,
+          "nodeDistance": 180,
+          "damping": 0.25
+        },
+        "maxVelocity": 15,
+        "solver": "hierarchicalRepulsion",
+        "stabilization": {"iterations": 80}
+      },
+      "layout": {
+        "hierarchical": {
+          "enabled": true,
+          "levelSeparation": 120,
+          "nodeSpacing": 120,
+          "treeSpacing": 150,
+          "blockShifting": true,
+          "edgeMinimization": true,
+          "parentCentralization": true,
+          "direction": "UD",
+          "sortMethod": "directed"
+        }
+      },
+      "nodes": {
+        "borderWidth": 2,
+        "shadow": {"enabled": true, "color": "rgba(0,0,0,0.3)", "size": 5},
+        "font": {"size": 12, "face": "Arial Bold", "color": "#ffffff", "strokeWidth": 1, "strokeColor": "#000000"}
+      },
+      "edges": {
+        "color": "#999999",
+        "width": 2,
+        "arrows": {"to": {"enabled": true, "scaleFactor": 0.8}},
+        "smooth": {"enabled": true, "type": "continuous", "roundness": 0.2}
+      },
+      "interaction": {"hover": true, "dragNodes": true, "zoomView": true}
+    }
+    """
+    
+    # Color scheme (updated for 5 levels)
+    COLORS = {
+        "root": "#e74c3c",
+        "aov_high": "#16a085",  # Changed to teal to distinguish from purple profitability
+        "aov_mid": "#3498db",
+        "aov_low": "#f39c12",
+        "engagement_high": "#f1c40f",
+        "engagement_low": "#e67e22",
+        "engagement_else": "#95a5a6",
+        "profitability_high": "#9b59b6",
+        "profitability_low": "#34495e",
+        "profitability_else": "#7f8c8d",
+        "active_segment": "#2ecc71",
+        "merged_component": "#e91e63"
+    }
+    
+    # Node sizes (updated for 5 levels)
+    NODE_SIZES = {
+        "root": 50,
+        "aov": 40,
+        "engagement": 35,
+        "profitability": 30,
+        "segment": 25
+    }
+
+
+class SegmentDataAnalyzer:
+    """Handles analysis and categorization of segment data."""
+    
+    @staticmethod
+    def load_segment_data(output_directory):
+        """Load and validate segment data from CSV file."""
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_dir))
+            csv_path = os.path.join(project_root, output_directory, "segments_summary.csv")
+            
+            if not os.path.exists(csv_path):
+                return None, None, f"Data file not found: {csv_path}"
+            
+            df = pd.read_csv(csv_path)
+            active_segments = df[df['segment_id'] != ''].copy()
+            merged_segments = df[df['segment_id'] == ''].copy()
+            
+            if len(active_segments) == 0:
+                return None, None, "No active segments found in data"
+            
+            return active_segments, merged_segments, None
+            
+        except Exception as e:
+            return None, None, f"Error loading data: {str(e)}"
+    
+    @staticmethod
+    def load_mece_report(output_directory):
+        """Load MECE report to get dynamic percentiles and thresholds."""
+        try:
+            
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_dir))
+            mece_path = os.path.join(project_root, output_directory, "mece_report.json")
+            
+            if not os.path.exists(mece_path):
+                return None, f"MECE report not found: {mece_path}"
+            
+            with open(mece_path, 'r') as f:
+                mece_data = json.load(f)
+            
+            return mece_data, None
+            
+        except Exception as e:
+            return None, f"Error loading MECE report: {str(e)}"
+    
+    @staticmethod
+    def get_dynamic_thresholds(mece_data):
+        """Extract dynamic thresholds from MECE report."""
+        percentiles = mece_data.get('percentiles', {})
+        
+        return {
+            'aov_low_max': percentiles.get('AOV_p20', 50.0),
+            'aov_high_min': percentiles.get('AOV_p80', 200.0),
+            'engagement_threshold': percentiles.get('eng_p50', 0.303),
+            'profitability_threshold': percentiles.get('prof_p50', 0.122)
+        }
+    
+    @staticmethod
+    def parse_segment_hierarchy(segment_name):
+        """Parse segment name to extract AOV, Engagement, and Profitability info."""
+        # Initialize with defaults
+        aov_level = 'unknown'
+        eng_level = 'unknown'
+        prof_level = 'unknown'
+        
+        # Parse AOV
+        if 'HighAOV' in segment_name:
+            aov_level = 'high'
+        elif 'MidAOV' in segment_name:
+            aov_level = 'mid'
+        elif 'LowAOV' in segment_name:
+            aov_level = 'low'
+        
+        # Parse Engagement
+        if 'HighEng' in segment_name:
+            eng_level = 'high'
+        elif 'LowEng' in segment_name:
+            eng_level = 'low'
+        elif '_ELSE' in segment_name:
+            eng_level = 'else'  # Combined category
+        
+        # Parse Profitability
+        if 'HighProf' in segment_name:
+            prof_level = 'high'
+        elif 'LowProf' in segment_name:
+            prof_level = 'low'
+        elif 'ELSE' in segment_name:
+            prof_level = 'else'  # Combined category
+        
+        return aov_level, eng_level, prof_level
+    
+    @staticmethod
+    def build_complete_hierarchy(active_segments, merged_segments):
+        """Build complete 5-level hierarchy including merged segment details."""
+        hierarchy = {}
+        
+        # Process active segments first
+        for _, segment in active_segments.iterrows():
+            segment_name = segment.get('segment_name', '')
+            aov, eng, prof = SegmentDataAnalyzer.parse_segment_hierarchy(segment_name)
+            
+            # Build hierarchy path
+            if aov not in hierarchy:
+                hierarchy[aov] = {}
+            if eng not in hierarchy[aov]:
+                hierarchy[aov][eng] = {}
+            if prof not in hierarchy[aov][eng]:
+                hierarchy[aov][eng][prof] = {
+                    'active_segments': [],
+                    'merged_components': [],
+                    'total_users': 0
+                }
+            
+            hierarchy[aov][eng][prof]['active_segments'].append(segment)
+            hierarchy[aov][eng][prof]['total_users'] += segment.get('size', 0)
+            
+            # Find which merged segments this active segment contains
+            if pd.notna(segment.get('notes', '')):
+                notes = segment.get('notes', '')
+                if 'Created by merging:' in notes:
+                    merged_list = notes.replace('Created by merging: ', '').split(', ')
+                    hierarchy[aov][eng][prof]['merged_components'].extend(merged_list)
+        
+        # Add information about standalone merged segments
+        for _, merged_seg in merged_segments.iterrows():
+            segment_name = merged_seg.get('segment_name', '')
+            aov, eng, prof = SegmentDataAnalyzer.parse_segment_hierarchy(segment_name)
+            
+            # These are the granular segments that were merged
+            if aov in hierarchy and eng in hierarchy[aov] and prof in hierarchy[aov][eng]:
+                continue  # Already processed as part of active segment
+            
+            # Create entry for merged-only segments
+            if aov not in hierarchy:
+                hierarchy[aov] = {}
+            if eng not in hierarchy[aov]:
+                hierarchy[aov][eng] = {}
+            if prof not in hierarchy[aov][eng]:
+                hierarchy[aov][eng][prof] = {
+                    'active_segments': [],
+                    'merged_components': [],
+                    'total_users': 0
+                }
+            
+            hierarchy[aov][eng][prof]['merged_components'].append(segment_name)
+        
+        return hierarchy
+
+
+class PyVisTreeBuilder:
+    """Handles PyVis network creation and configuration."""
+    
+    def __init__(self):
+        self.config = TreeVisualizationConfig()
+        self.analyzer = SegmentDataAnalyzer()
+    
+    def create_network(self):
+        
+        net = Network(
+            height=self.config.HEIGHT,
+            width=self.config.WIDTH,
+            bgcolor=self.config.BACKGROUND_COLOR,
+            font_color=self.config.FONT_COLOR,
+            directed=True,
+            layout=True
+        )
+        
+        net.set_options(self.config.PHYSICS_OPTIONS)
+        return net
+    
+    def add_root_node(self, net, total_users, active_count, merged_count):
+        """Add root node to the network."""
+        net.add_node(
+            "root",
+            label="Customer Universe",
+            title=f"Total: {total_users:,} users\nActive: {active_count} segments\nMerged: {merged_count} segments",
+            color=self.config.COLORS["root"],
+            size=self.config.NODE_SIZES["root"],
+            level=0,
+            font={"size": 14, "bold": True}
+        )
+    
+    def add_aov_nodes(self, net, aov_categories):
+        """Add AOV branch nodes to the network."""
+        for aov_type, aov_info in aov_categories.items():
+            if aov_info['segment_count'] == 0:
+                continue
+                
+            aov_id = f"{aov_type}_aov"
+            net.add_node(
+                aov_id,
+                label=f"{aov_info['display_name']}\n{aov_info['user_count']:,} users",
+                title=f"Range: {aov_info['range']}\nSegments: {aov_info['segment_count']}\nUsers: {aov_info['user_count']:,}",
+                color=self.config.COLORS[f"aov_{aov_type}"],
+                size=self.config.NODE_SIZES["aov"],
+                level=1,
+                font={"size": 12}
+            )
+            net.add_edge("root", aov_id, width=3)
+    
+    def add_engagement_nodes(self, net, aov_categories):
+        """Add engagement nodes for each AOV category."""
+        for aov_type, aov_info in aov_categories.items():
+            if aov_info['segment_count'] == 0:
+                continue
+                
+            aov_id = f"{aov_type}_aov"
+            eng_categories = self.analyzer.categorize_by_engagement(aov_info['data'])
+            
+            for eng_type, eng_info in eng_categories.items():
+                if eng_info['segment_count'] == 0:
+                    continue
+                    
+                eng_id = f"{aov_id}_{eng_type}_eng"
+                net.add_node(
+                    eng_id,
+                    label=f"{eng_info['display_name']}\n{eng_info['user_count']:,} users",
+                    title=f"Engagement: {eng_type}\nSegments: {eng_info['segment_count']}\nUsers: {eng_info['user_count']:,}",
+                    color=self.config.COLORS[f"engagement_{eng_type}"],
+                    size=self.config.NODE_SIZES["engagement"],
+                    level=2,
+                    font={"size": 11}
+                )
+                net.add_edge(aov_id, eng_id, width=2)
+                
+                # Add individual segments
+                self.add_segment_nodes(net, eng_id, eng_info['data'])
+    
+    def add_segment_nodes(self, net, parent_id, segments_df):
+        """Add individual segment nodes."""
+        for _, segment in segments_df.iterrows():
+            seg_id = f"seg_{segment['segment_id']}"
+            
+            label = f"{segment['segment_id']}\n{segment['size']:,} users"
+            title = f"Segment: {segment['segment_id']}\nUsers: {segment['size']:,}\nScore: {segment.get('overall_score', 0):.3f}"
+            
+            net.add_node(
+                seg_id,
+                label=label,
+                title=title,
+                color=self.config.COLORS["active_segment"],
+                size=self.config.NODE_SIZES["segment"],
+                level=3,
+                font={"size": 10}
+            )
+            net.add_edge(parent_id, seg_id, width=1)
+    
+    def build_tree(self, output_directory):
+        """Build complete 5-level tree visualization with proper hierarchy."""
+        # Load data
+        active_segments, merged_segments, error = self.analyzer.load_segment_data(output_directory)
+        if error:
+            return None, error
+        
+        # Load dynamic thresholds
+        mece_data, mece_error = self.analyzer.load_mece_report(output_directory)
+        if mece_error:
+            # Use default values if MECE report unavailable
+            thresholds = {
+                'aov_low_max': 50.0,
+                'aov_high_min': 200.0,
+                'engagement_threshold': 0.303,
+                'profitability_threshold': 0.122
+            }
+        else:
+            thresholds = self.analyzer.get_dynamic_thresholds(mece_data)
+        
+        # Create network
+        net = self.create_network()
+        if not net:
+            return None, "PyVis not available"
+        
+        # Build complete hierarchy
+        hierarchy = self.analyzer.build_complete_hierarchy(active_segments, merged_segments)
+        total_users = active_segments['size'].sum()
+        
+        # Add root node
+        self.add_root_node(net, total_users, len(active_segments), len(merged_segments))
+        
+        # Build 5-level tree: Root → AOV → Engagement → Profitability → Segments
+        for aov_type, aov_data in hierarchy.items():
+            if aov_type == 'unknown':
+                continue
+                
+            # Level 2: AOV nodes with dynamic ranges
+            aov_id = f"{aov_type}_aov"
+            aov_users = sum(
+                sum(prof_data['total_users'] for prof_data in eng_data.values())
+                for eng_data in aov_data.values()
+            )
+            
+            aov_display = {'high': 'High AOV', 'mid': 'Medium AOV', 'low': 'Low AOV'}[aov_type]
+            
+            # Dynamic AOV ranges based on MECE report
+            if aov_type == 'high':
+                aov_range = f">${thresholds['aov_high_min']:.0f}+"
+            elif aov_type == 'mid':
+                aov_range = f"${thresholds['aov_low_max']:.0f}-${thresholds['aov_high_min']:.0f}"
+            else:  # low
+                aov_range = f"≤${thresholds['aov_low_max']:.0f}"
+            
+            net.add_node(
+                aov_id,
+                label=f"{aov_display}\n{aov_users:,} users",
+                title=f"Range: {aov_range}\nTotal users: {aov_users:,}",
+                color=self.config.COLORS[f"aov_{aov_type}"],
+                size=self.config.NODE_SIZES["aov"],
+                level=1,
+                font={"size": 12}
+            )
+            net.add_edge("root", aov_id, width=3)
+            
+            # Level 3: Engagement nodes
+            for eng_type, eng_data in aov_data.items():
+                if eng_type == 'unknown':
+                    continue
+                    
+                eng_id = f"{aov_id}_{eng_type}_eng"
+                eng_users = sum(prof_data['total_users'] for prof_data in eng_data.values())
+                
+                if eng_users == 0:
+                    continue
+                
+                eng_display = {
+                    'high': 'High Engagement',
+                    'low': 'Low Engagement', 
+                    'else': 'Combined Engagement'
+                }[eng_type]
+                
+                # Dynamic engagement threshold info
+                if eng_type == 'high':
+                    eng_threshold_info = f"Score >{thresholds['engagement_threshold']:.3f}"
+                elif eng_type == 'low':
+                    eng_threshold_info = f"Score ≤{thresholds['engagement_threshold']:.3f}"
+                else:
+                    eng_threshold_info = "Merged categories"
+                
+                net.add_node(
+                    eng_id,
+                    label=f"{eng_display}\n{eng_users:,} users",
+                    title=f"Engagement: {eng_type}\nThreshold: {eng_threshold_info}\nUsers: {eng_users:,}",
+                    color=self.config.COLORS[f"engagement_{eng_type}"],
+                    size=self.config.NODE_SIZES["engagement"],
+                    level=2,
+                    font={"size": 11}
+                )
+                net.add_edge(aov_id, eng_id, width=2)
+                
+                # Level 4: Profitability nodes
+                for prof_type, prof_data in eng_data.items():
+                    if prof_type == 'unknown' or prof_data['total_users'] == 0:
+                        continue
+                        
+                    prof_id = f"{eng_id}_{prof_type}_prof"
+                    
+                    prof_display = {
+                        'high': 'High Profitability',
+                        'low': 'Low Profitability',
+                        'else': 'Combined Profitability'
+                    }[prof_type]
+                    
+                    # Dynamic profitability threshold info
+                    if prof_type == 'high':
+                        prof_threshold_info = f"Score >{thresholds['profitability_threshold']:.3f}"
+                    elif prof_type == 'low':
+                        prof_threshold_info = f"Score ≤{thresholds['profitability_threshold']:.3f}"
+                    else:
+                        prof_threshold_info = "Merged categories"
+                    
+                    # Show merge information in title
+                    merge_info = ""
+                    if prof_data['merged_components']:
+                        merge_info = f"\nContains: {', '.join(prof_data['merged_components'][:3])}{'...' if len(prof_data['merged_components']) > 3 else ''}"
+                    
+                    net.add_node(
+                        prof_id,
+                        label=f"{prof_display}\n{prof_data['total_users']:,} users",
+                        title=f"Profitability: {prof_type}\nThreshold: {prof_threshold_info}\nUsers: {prof_data['total_users']:,}{merge_info}",
+                        color=self.config.COLORS[f"profitability_{prof_type}"],
+                        size=self.config.NODE_SIZES["profitability"],
+                        level=3,
+                        font={"size": 10}
+                    )
+                    net.add_edge(eng_id, prof_id, width=2)
+                    
+                    # Level 5: Individual active segments
+                    for segment in prof_data['active_segments']:
+                        seg_id = f"seg_{segment['segment_id']}"
+                        
+                        # Show if this segment contains merged components
+                        merge_count = len(prof_data['merged_components'])
+                        label = f"{segment['segment_id']}\n{segment['size']:,} users"
+                        if merge_count > 0:
+                            label += f"\n(+{merge_count} merged)"
+                        
+                        # Enhanced tooltip with proper segment name
+                        title = f"Segment: {segment['segment_id']}\nName: {segment.get('segment_name', 'N/A')}\nUsers: {segment['size']:,}\nScore: {segment.get('overall_score', 0):.3f}"
+                        if merge_count > 0:
+                            title += f"\nContains {merge_count} merged segments"
+                        
+                        net.add_node(
+                            seg_id,
+                            label=label,
+                            title=title,
+                            color=self.config.COLORS["active_segment"],
+                            size=self.config.NODE_SIZES["segment"],
+                            level=4,
+                            font={"size": 9}
+                        )
+                        net.add_edge(prof_id, seg_id, width=1)
+        
+        # Generate HTML and inject custom CSS to remove white padding
+        html_content = net.generate_html()
+        html_content = self.inject_custom_css(html_content)
+        return html_content, None
+    
+    def inject_custom_css(self, html_content):
+        """Inject custom CSS to remove white padding."""
+        custom_css = """
+        <style>
+        body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            background-color: #000000 !important; 
+            overflow: hidden !important; 
+        }
+        #mynetworkid { 
+            border: none !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+        }
+        </style>
+        """
+        # Inject CSS right after <head>
+        html_content = html_content.replace('<head>', f'<head>{custom_css}')
+        return html_content
+
 
 def create_segmentation_tree(output_directory):
     """
-    Create an interactive tree visualization of the segmentation process.
-    
-    Args:
-        output_directory (str): Path to the output directory containing results
+    Main function to create the segmentation tree visualization.
+    This is the only public interface used by the frontend.
     """
+    # Load dynamic thresholds from MECE report
+    analyzer = SegmentDataAnalyzer()
+    mece_data, mece_error = analyzer.load_mece_report(output_directory)
     
-    try:
-        # Get absolute path to project root
-        current_dir = os.path.dirname(os.path.abspath(__file__))  # frontend/components
-        project_root = os.path.dirname(os.path.dirname(current_dir))  # go up two levels
-        csv_path = os.path.join(project_root, output_directory, "segments_summary.csv")
+    if mece_error:
+        st.warning(f"Could not load dynamic thresholds from {output_directory}: {mece_error}. Using default values.")
+    else:
+        thresholds = analyzer.get_dynamic_thresholds(mece_data)
+    # Business logic description with dynamic values in expandable section
+    with st.expander("ℹ️ Understanding the 5-Level Decision Tree", expanded=False):
+        st.markdown(f"""
+        **Purpose**: This decision tree systematically segments cart abandoners using a data-driven 5-level hierarchy with thresholds dynamically loaded from MECE reports.
         
-        if not os.path.exists(csv_path):
-            st.error("Segments data not found")
+        **Dynamic Thresholds**: Values auto-update based on your dataset's percentiles:
+        - AOV Low: ≤${thresholds['aov_low_max']:.0f} (20th percentile)
+        - AOV High: >${thresholds['aov_high_min']:.0f} (80th percentile)  
+        - Engagement: >{thresholds['engagement_threshold']:.3f} (50th percentile)
+        - Profitability: >{thresholds['profitability_threshold']:.3f} (50th percentile)
+        
+        **Tree Structure**:
+        - **Level 1: Customer Universe** - All cart abandoners in the dataset (root node)
+        - **Level 2: AOV Segmentation** - Primary split by purchasing power:
+          - High AOV: >${thresholds['aov_high_min']:.0f} (Premium customers with strong buying power)
+          - Medium AOV: ${thresholds['aov_low_max']:.0f}-${thresholds['aov_high_min']:.0f} (Standard customers, core market)
+          - Low AOV: ≤${thresholds['aov_low_max']:.0f} (Budget-conscious, volume-focused)
+          - Combined: Merged categories for statistical significance
+        - **Level 3: Engagement Classification** - Secondary split by user activity:
+          - High Engagement: Score >{thresholds['engagement_threshold']:.3f} (Active users, frequent interactions)
+          - Low Engagement: Score ≤{thresholds['engagement_threshold']:.3f} (Passive users, minimal activity)
+          - Combined: Merged categories for statistical significance
+        - **Level 4: Profitability Potential** - Tertiary split by revenue opportunity:
+          - High Profitability: Score >{thresholds['profitability_threshold']:.3f} (High-margin customers)
+          - Low Profitability: Score ≤{thresholds['profitability_threshold']:.3f} (Cost-sensitive strategies)
+          - Combined: Merged for campaign efficiency
+        - **Level 5: Final Segments** - Actionable segments with specific retention strategies
+        
+        **Interactive Features**:
+        - **Drag**: Rearrange nodes by clicking and dragging
+        - **Zoom**: Use mouse wheel or pinch gestures to zoom in/out
+        - **Hover**: View detailed segment information and metrics
+        - **Pan**: Click and drag empty space to navigate large trees
+        
+        **Business Value**: Each segment shows user counts, performance scores, and business rules to guide targeted marketing campaigns with optimal ROI.
+        """)
+    
+    st.markdown("---")
+    
+    # Load and display tree (reuse analyzer from above)
+    active_segments, merged_segments, error = analyzer.load_segment_data(output_directory)
+    
+    if error:
+        st.error(f"Error: {error}")
+        return
+    
+    # Generate tree
+    with st.spinner("Generating tree visualization..."):
+        tree_builder = PyVisTreeBuilder()
+        html_content, error = tree_builder.build_tree(output_directory)
+        
+        if error:
+            st.error(f"Error creating tree: {error}")
             return
         
-        df = pd.read_csv(csv_path)
-        active_segments = df[df['segment_id'] != ''].copy()
-        
-        if len(active_segments) == 0:
-            st.warning("No active segments to visualize")
-            return
-        
-        st.subheader("🌳 Interactive Segmentation Decision Tree")
-        
-        # Create tabs for different visualizations
-        tab1, tab2, tab3 = st.tabs(["🌳 Decision Tree", "📊 Performance Matrix", "🔄 Segment Flow"])
-        
-        with tab1:
-            fig = create_modern_decision_tree(active_segments)
-            st.plotly_chart(fig, use_container_width=True)
+        if html_content:
+            st.components.v1.html(html_content, height=750, scrolling=True)
             
-        with tab2:
-            create_performance_matrix(active_segments)
-            
-        with tab3:
-            create_segment_flow_visualization(active_segments)
-        
-    except Exception as e:
-        st.error(f"Error creating tree visualization: {str(e)}")
-        import traceback
-        st.error(traceback.format_exc())
-
-def create_modern_decision_tree(segments_df):
-    """
-    Create a modern, beautiful decision tree visualization.
-    
-    Args:
-        segments_df (pd.DataFrame): DataFrame with segment information
-    
-    Returns:
-        plotly.graph_objects.Figure: The tree visualization
-    """
-    
-    # Parse segment rules to understand the decision criteria
-    segments_data = []
-    
-    for idx, segment in segments_df.iterrows():
-        segment_info = {
-            'id': segment['segment_id'],
-            'name': segment['segment_name'],
-            'size': segment['size'],
-            'score': segment['overall_score'],
-            'conversion_potential': segment.get('conversion_potential', 0.5),
-            'profitability': segment.get('profitability', 0.5),
-            'rules': segment.get('segment_rules', '')
-        }
-        segments_data.append(segment_info)
-    
-    # Create tree layout
-    fig = go.Figure()
-    
-    # Define color palette
-    colors = {
-        'high': '#2E8B57',      # Sea Green
-        'medium': '#FF8C00',    # Dark Orange  
-        'low': '#DC143C',       # Crimson
-        'root': '#4169E1',      # Royal Blue
-        'branch': '#9370DB'     # Medium Purple
-    }
-    
-    # Root node
-    fig.add_trace(go.Scatter(
-        x=[0], y=[4],
-        mode='markers+text',
-        marker=dict(size=80, color=colors['root'], 
-                   line=dict(width=3, color='white'),
-                   symbol='circle'),
-        text=['Cart Abandoners<br>Universe'],
-        textposition="middle center",
-        textfont=dict(size=12, color='white', family='Arial Black'),
-        showlegend=False,
-        hovertemplate='<b>Cart Abandoners Universe</b><br>' +
-                     f'Total Users: {segments_df["size"].sum():,}<br>' +
-                     '<extra></extra>'
-    ))
-    
-    # Level 1: AOV Branches
-    aov_branches = ['High AOV', 'Medium AOV', 'Low AOV']
-    aov_positions = [(-3, 2.5), (0, 2.5), (3, 2.5)]
-    aov_colors = [colors['high'], colors['medium'], colors['low']]
-    
-    for i, (branch, pos, color) in enumerate(zip(aov_branches, aov_positions, aov_colors)):
-        # Add branch node
-        fig.add_trace(go.Scatter(
-            x=[pos[0]], y=[pos[1]],
-            mode='markers+text',
-            marker=dict(size=60, color=color,
-                       line=dict(width=2, color='white'),
-                       symbol='diamond'),
-            text=[f'{branch}<br>Branch'],
-            textposition="middle center", 
-            textfont=dict(size=10, color='white', family='Arial'),
-            showlegend=False,
-            hovertemplate=f'<b>{branch} Branch</b><br>' +
-                         'Decision Node<br>' +
-                         '<extra></extra>'
-        ))
-        
-        # Add connecting line from root
-        fig.add_trace(go.Scatter(
-            x=[0, pos[0]], y=[4, pos[1]],
-            mode='lines',
-            line=dict(color='#708090', width=3, dash='solid'),
-            showlegend=False,
-            hoverinfo='skip'
-        ))
-    
-    # Level 2: Segment Leaves
-    num_segments = len(segments_data)
-    if num_segments > 0:
-        # Distribute segments across the width
-        segment_width = 8  # Total width for segments
-        segment_spacing = segment_width / max(num_segments - 1, 1) if num_segments > 1 else 0
-        start_x = -segment_width / 2
-        
-        for i, segment in enumerate(segments_data):
-            x_pos = start_x + (i * segment_spacing)
-            y_pos = 1
-            
-            # Color based on overall score
-            score = segment['score']
-            if score >= 0.7:
-                color = colors['high']
-                label = 'High Performer'
-            elif score >= 0.4:
-                color = colors['medium'] 
-                label = 'Medium Performer'
-            else:
-                color = colors['low']
-                label = 'Low Performer'
-            
-            # Size based on segment size (normalized)
-            max_size = max([s['size'] for s in segments_data])
-            normalized_size = 30 + (segment['size'] / max_size) * 40
-            
-            # Add segment node
-            fig.add_trace(go.Scatter(
-                x=[x_pos], y=[y_pos],
-                mode='markers+text',
-                marker=dict(size=normalized_size, color=color,
-                           line=dict(width=2, color='white'),
-                           symbol='hexagon'),
-                text=[f"{segment['id']}<br>{segment['size']:,}"],
-                textposition="middle center",
-                textfont=dict(size=8, color='white', family='Arial'),
-                showlegend=False,
-                hovertemplate=f"<b>{segment['name']}</b><br>" +
-                             f"ID: {segment['id']}<br>" +
-                             f"Size: {segment['size']:,} users<br>" +
-                             f"Score: {segment['score']:.3f}<br>" +
-                             f"Performance: {label}<br>" +
-                             f"<extra></extra>"
-            ))
-            
-            # Connect to appropriate AOV branch (simplified logic)
-            parent_idx = i % 3  # Distribute across 3 AOV branches
-            parent_pos = aov_positions[parent_idx]
-            
-            fig.add_trace(go.Scatter(
-                x=[parent_pos[0], x_pos], y=[parent_pos[1], y_pos],
-                mode='lines',
-                line=dict(color='#B0C4DE', width=2, dash='dot'),
-                showlegend=False,
-                hoverinfo='skip'
-            ))
-    
-    # Add legend manually using annotations
-    fig.add_annotation(
-        x=0.02, y=0.98,
-        xref="paper", yref="paper",
-        text="<b>Performance Levels:</b><br>" +
-             "<span style='color:#2E8B57'>●</span> High (0.7+)<br>" +
-             "<span style='color:#FF8C00'>●</span> Medium (0.4-0.7)<br>" +
-             "<span style='color:#DC143C'>●</span> Low (<0.4)",
-        showarrow=False,
-        align="left",
-        bgcolor="rgba(255,255,255,0.8)",
-        bordercolor="gray",
-        borderwidth=1,
-        font=dict(size=10)
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title={
-            'text': "Segmentation Decision Tree - Interactive View",
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'size': 16, 'family': 'Arial Black'}
-        },
-        showlegend=False,
-        height=700,
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-5, 5]),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0, 5]),
-        plot_bgcolor='rgba(248,249,250,0.8)',
-        paper_bgcolor='white',
-        margin=dict(l=50, r=50, t=80, b=50)
-    )
-    
-    return fig
-
-def create_performance_matrix(segments_df):
-    """
-    Create a performance matrix visualization showing segment relationships.
-    
-    Args:
-        segments_df (pd.DataFrame): DataFrame with segment information
-    """
-    
-    st.subheader("📊 Segment Performance Matrix")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Scatter plot: Size vs Score
-        fig_scatter = px.scatter(
-            segments_df,
-            x='size',
-            y='overall_score',
-            size='conversion_potential' if 'conversion_potential' in segments_df.columns else 'size',
-            color='profitability' if 'profitability' in segments_df.columns else 'overall_score',
-            hover_name='segment_name',
-            title="Segment Size vs Performance Score",
-            color_continuous_scale='RdYlGn',
-            labels={
-                'size': 'Segment Size (Users)',
-                'overall_score': 'Overall Performance Score'
-            }
-        )
-        
-        fig_scatter.update_layout(
-            height=400,
-            xaxis_title="Segment Size (Users)",
-            yaxis_title="Overall Performance Score",
-            plot_bgcolor='rgba(248,249,250,0.8)'
-        )
-        
-        st.plotly_chart(fig_scatter, use_container_width=True)
-    
-    with col2:
-        # Performance distribution
-        fig_dist = go.Figure()
-        
-        # Add histogram
-        fig_dist.add_trace(go.Histogram(
-            x=segments_df['overall_score'],
-            nbinsx=10,
-            marker_color='rgba(55, 83, 109, 0.7)',
-            marker_line=dict(color='white', width=2),
-            name='Score Distribution'
-        ))
-        
-        fig_dist.update_layout(
-            title="Performance Score Distribution",
-            xaxis_title="Overall Score",
-            yaxis_title="Number of Segments",
-            height=400,
-            plot_bgcolor='rgba(248,249,250,0.8)',
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig_dist, use_container_width=True)
-    
-    # Segment comparison table
-    st.subheader("📋 Segment Performance Comparison")
-    
-    # Create a styled dataframe
-    display_df = segments_df[['segment_id', 'segment_name', 'size', 'overall_score']].copy()
-    display_df['size'] = display_df['size'].apply(lambda x: f"{x:,}")
-    display_df['overall_score'] = display_df['overall_score'].apply(lambda x: f"{x:.3f}")
-    display_df.columns = ['Segment ID', 'Segment Name', 'Size', 'Score']
-    
-    st.dataframe(display_df, use_container_width=True)
-
-def create_segment_flow_visualization(segments_df):
-    """
-    Create a flow visualization showing segment progression and relationships.
-    
-    Args:
-        segments_df (pd.DataFrame): DataFrame with segment information
-    """
-    
-    st.subheader("🔄 Segment Flow & Progression")
-    
-    # Create a waterfall-style chart showing segment sizes
-    segments_sorted = segments_df.sort_values('overall_score', ascending=False)
-    
-    fig = go.Figure()
-    
-    # Create cumulative flow
-    cumulative_size = 0
-    colors = ['#2E8B57', '#32CD32', '#FFD700', '#FF8C00', '#FF6347', '#DC143C']
-    
-    for i, (idx, segment) in enumerate(segments_sorted.iterrows()):
-        color = colors[i % len(colors)]
-        
-        fig.add_trace(go.Bar(
-            x=[segment['segment_id']],
-            y=[segment['size']],
-            name=f"{segment['segment_id']} ({segment['size']:,})",
-            marker_color=color,
-            text=f"{segment['size']:,}",
-            textposition='auto',
-            hovertemplate=f"<b>{segment['segment_name']}</b><br>" +
-                         f"Size: {segment['size']:,}<br>" +
-                         f"Score: {segment['overall_score']:.3f}<br>" +
-                         "<extra></extra>"
-        ))
-    
-    fig.update_layout(
-        title="Segment Size Distribution (Ranked by Performance)",
-        xaxis_title="Segment ID",
-        yaxis_title="Number of Users",
-        height=500,
-        plot_bgcolor='rgba(248,249,250,0.8)',
-        showlegend=True,
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02
-        )
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Flow metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_users = segments_df['size'].sum()
-        st.metric("Total Users", f"{total_users:,}")
-    
-    with col2:
-        avg_score = segments_df['overall_score'].mean()
-        st.metric("Avg Score", f"{avg_score:.3f}")
-    
-    with col3:
-        top_segment = segments_sorted.iloc[0]
-        st.metric("Top Segment", f"{top_segment['segment_id']}")
-    
-    with col4:
-        score_range = segments_df['overall_score'].max() - segments_df['overall_score'].min()
-        st.metric("Score Range", f"{score_range:.3f}")
-
-def create_merge_process_animation(output_directory):
-    """
-    Create an animated visualization showing the merge process.
-    
-    Args:
-        output_directory (str): Path to the output directory
-    """
-    
-    st.subheader("🔄 Merge Process Visualization")
-    
-    try:
-        # Get absolute path to project root
-        current_dir = os.path.dirname(os.path.abspath(__file__))  # frontend/components
-        project_root = os.path.dirname(os.path.dirname(current_dir))  # go up two levels
-        csv_path = os.path.join(project_root, output_directory, "segments_summary.csv")
-        
-        df = pd.read_csv(csv_path)
-        
-        active_segments = df[df['segment_id'] != '']
-        merged_segments = df[df['segment_id'] == '']
-        
-        if len(merged_segments) == 0:
-            st.info("No segments were merged in this analysis")
-            return
-        
-        st.write(f"**Active Segments:** {len(active_segments)}")
-        st.write(f"**Merged Segments:** {len(merged_segments)}")
-        
-        # Show merge impact
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Active Segments")
-            active_chart = px.bar(
-                active_segments,
-                x='segment_id',
-                y='size',
-                color='overall_score',
-                title="Active Segment Sizes",
-                color_continuous_scale='Viridis'
+            # Download option
+            st.download_button(
+                label="📥 Download Interactive Tree (HTML)",
+                data=html_content,
+                file_name=f"tree_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
+                mime="text/html"
             )
-            st.plotly_chart(active_chart, use_container_width=True)
-        
-        with col2:
-            st.subheader("Merged Segments")
-            if len(merged_segments) > 0:
-                merged_chart = px.bar(
-                    merged_segments.head(10),  # Show top 10 merged
-                    x=range(len(merged_segments.head(10))),
-                    y='size',
-                    title="Merged Segment Sizes (Top 10)",
-                    color_discrete_sequence=['#FF6B6B']
-                )
-                merged_chart.update_layout(xaxis_title="Merged Segment Index")
-                st.plotly_chart(merged_chart, use_container_width=True)
-            else:
-                st.info("No merged segments to display")
-        
-    except Exception as e:
-        st.error(f"Error creating merge visualization: {str(e)}")
-
-# Legacy function for backward compatibility
-def create_segment_flow_diagram(segments_df):
-    """Legacy function - redirects to new visualization"""
-    create_segment_flow_visualization(segments_df)
+            
+            # st.success("Tree visualization loaded successfully!")
+            st.info("Tip: Drag nodes to rearrange, zoom with mouse wheel, hover for details")
+        else:
+            st.error("Failed to generate tree visualization")

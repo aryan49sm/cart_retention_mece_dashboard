@@ -2,3 +2,4 @@ venv/
 experiments/
 __pycache__/
 output_*/
+*_old.py

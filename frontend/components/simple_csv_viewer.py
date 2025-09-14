@@ -10,8 +10,8 @@ def display_simple_csv_viewer(output_directory):
         output_directory (str): Directory containing CSV files
     """
     
-    st.subheader("📄 Raw Data Viewer")
-    st.info("This folder contains raw data files. Select a CSV file to view its contents.")
+    st.subheader("Raw Data Viewer")
+    # st.info("This folder contains raw data files. Select a CSV file to view its contents.")
     
     # Get absolute path to project root
     current_dir = os.path.dirname(os.path.abspath(__file__))  # frontend/components
@@ -56,7 +56,7 @@ def display_simple_csv_viewer(output_directory):
                 st.metric("File Size", f"{os.path.getsize(file_path) / 1024:.1f} KB")
             
             # Display column info
-            st.subheader("📊 Column Information")
+            st.subheader("Column Information")
             col_info = []
             for col in df.columns:
                 col_type = str(df[col].dtype)
@@ -74,7 +74,7 @@ def display_simple_csv_viewer(output_directory):
             st.dataframe(col_df, use_container_width=True, hide_index=True)
             
             # Display sample data
-            st.subheader("🔍 Data Preview")
+            st.subheader("Data Preview")
             
             # Show first few rows
             preview_rows = st.slider("Number of rows to preview", 5, min(100, len(df)), 10)
@@ -83,12 +83,12 @@ def display_simple_csv_viewer(output_directory):
             # Display summary statistics for numeric columns
             numeric_cols = df.select_dtypes(include=['number']).columns
             if len(numeric_cols) > 0:
-                st.subheader("📈 Numeric Columns Summary")
+                st.subheader("Numeric Columns Summary")
                 summary_stats = df[numeric_cols].describe()
                 st.dataframe(summary_stats, use_container_width=True)
             
             # Download option
-            st.subheader("📥 Download")
+            st.subheader("Download")
             csv_data = df.to_csv(index=False)
             st.download_button(
                 label=f"📥 Download {selected_file}",
@@ -98,7 +98,7 @@ def display_simple_csv_viewer(output_directory):
             )
             
             # Show data types and memory usage
-            with st.expander("🔧 Technical Details"):
+            with st.expander("ℹ️ Technical Details"):
                 st.write("**Data Types:**")
                 dtype_info = pd.DataFrame({
                     'Column': df.dtypes.index,
@@ -121,7 +121,7 @@ def display_simple_dashboard(output_directory):
         output_directory (str): Directory name
     """
     
-    st.markdown(f"## 📁 {output_directory.upper()} Directory")
+    # st.markdown(f"## {output_directory.upper()} Directory")
     
     # Get absolute path to project root
     current_dir = os.path.dirname(os.path.abspath(__file__))  # frontend/components
@@ -129,26 +129,26 @@ def display_simple_dashboard(output_directory):
     base_path = os.path.join(project_root, output_directory)
     
     if os.path.exists(base_path):
-        files = os.listdir(base_path)
+        # files = os.listdir(base_path)
         
-        st.subheader("📋 Directory Contents")
+        # st.subheader("Directory Contents")
         
-        file_info = []
-        for file in files:
-            file_path = os.path.join(base_path, file)
-            if os.path.isfile(file_path):
-                size_kb = os.path.getsize(file_path) / 1024
-                file_type = file.split('.')[-1].upper() if '.' in file else 'Unknown'
+        # file_info = []
+        # for file in files:
+        #     file_path = os.path.join(base_path, file)
+        #     if os.path.isfile(file_path):
+        #         size_kb = os.path.getsize(file_path) / 1024
+        #         file_type = file.split('.')[-1].upper() if '.' in file else 'Unknown'
                 
-                file_info.append({
-                    'File Name': file,
-                    'Type': file_type,
-                    'Size (KB)': f"{size_kb:.1f}"
-                })
+        #         file_info.append({
+        #             'File Name': file,
+        #             'Type': file_type,
+        #             'Size (KB)': f"{size_kb:.1f}"
+        #         })
         
-        if file_info:
-            files_df = pd.DataFrame(file_info)
-            st.dataframe(files_df, use_container_width=True, hide_index=True)
+        # if file_info:
+        #     files_df = pd.DataFrame(file_info)
+        #     st.dataframe(files_df, use_container_width=True, hide_index=True)
         
         # CSV viewer
         display_simple_csv_viewer(output_directory)

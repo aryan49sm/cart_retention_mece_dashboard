@@ -1,3 +1,4 @@
+import plotly.express as px
 import streamlit as st
 import pandas as pd
 import os
@@ -23,30 +24,30 @@ def display_segments_summary(output_directory):
         # Load the segments summary
         df = pd.read_csv(csv_path)
         
-        # Display summary metrics
-        total_segments = len(df[df['segment_id'] != ''])
-        total_users = df[df['segment_id'] != '']['size'].sum()
-        avg_score = df[df['segment_id'] != '']['overall_score'].mean()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Active Segments", total_segments)
-        with col2:
-            st.metric("Total Users", f"{total_users:,}")
-        with col3:
-            st.metric("Avg Overall Score", f"{avg_score:.3f}")
-        
-        st.markdown("---")
-        
-        # Separate active and merged segments
-        # Active segments have valid segment_id (not empty/null)
+        # Filter active segments using consistent logic
         active_segments = df[
             (df['segment_id'].notna()) & 
             (df['segment_id'] != '') & 
             (df['segment_id'].str.strip() != '')
         ].copy()
         
-        # Merged segments have empty segment_id
+        # Calculate metrics
+        total_segments = len(active_segments)
+        total_users = int(active_segments['size'].sum()) if len(active_segments) > 0 else 0
+        avg_score = float(active_segments['overall_score'].mean()) if len(active_segments) > 0 else 0
+        
+        # Display key metrics in 3 columns
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Active Segments", total_segments)
+        with col2:
+            st.metric("Total Users", f"{total_users:,}")
+        with col3:
+            st.metric("Avg Score", f"{avg_score:.3f}")
+        
+        st.markdown("---")
+        
+        # Merged segments calculation for reference
         merged_segments = df[
             (df['segment_id'].isna()) | 
             (df['segment_id'] == '') | 
@@ -54,7 +55,132 @@ def display_segments_summary(output_directory):
         ].copy()
         
         # Display active segments
-        st.subheader("🎯 Active Segments")
+        st.subheader("Active Segments")
+        
+        # Expandable help section for Active Segments
+        with st.expander("ℹ️ Column Explanations - Active Segments", expanded=False):
+            st.markdown("""
+            **Key Columns Overview:**
+            
+            • **segment_id**: Unique identifier (S001, S002, etc.) for operational segments  
+            • **segment_name**: Descriptive name combining AOV, engagement, and profitability rules  
+            • **rules_applied**: Specific business logic conditions defining this segment  
+            • **size**: Number of users classified into this segment  
+            
+            **Performance Scores (0.0 - 1.0 scale):**
+            
+            • **conversion_potential**: Expected likelihood to convert (based on historical patterns)  
+            • **profitability**: Revenue potential per user (calculated from AOV and margin data)  
+            • **lift_vs_control**: Performance improvement over baseline/control group  
+            • **size_score**: Segment size viability (larger segments score higher for campaign efficiency)  
+            • **strategic_fit**: Alignment with business priorities and marketing capabilities  
+            • **overall_score**: Weighted combination of all above metrics (primary ranking metric)  
+            
+            **Status & Metadata:**
+            
+            • **valid_flag**: "Yes" for active segments, "No" for merged ones  
+            • **merged_into**: Shows target segment ID if this segment was consolidated (None for active segments)  
+            • **notes**: Additional context about segment creation or merging decisions (None if no special notes)
+            
+            """)
+        
+        # Detailed formula explanations for numeric columns
+        with st.expander("🧮 Detailed Calculation Formulas & Logic", expanded=False):
+            st.markdown("""
+            **Formula Documentation - Exact Implementation Details**
+            
+            **1. Conversion Potential (0.0 - 1.0)**
+            ```
+            Formula: engagement_score × recency_factor
+            
+            Where:
+            • recency_factor = (7.0 - days_since_abandon) / 7.0, clipped to ≥ 0.0
+            • engagement_score = original engagement score from dataset
+            ```
+            
+            **Logic & Intuition:**
+            - Combines user engagement patterns with cart abandonment recency
+            - Recent abandoners (lower days_since_abandon) get higher recency_factor
+            - Highly engaged users with recent abandons have highest conversion potential
+            - Example: User with engagement=0.8, abandoned 2 days ago → (7-2)/7 = 0.714 → 0.8 × 0.714 = 0.571
+            
+            **2. Profitability (0.0 - 1.0)**
+            ```
+            Formula: Direct profitability_score from dataset (segment average)
+            ```
+            
+            **Logic & Intuition:**
+            - Uses pre-calculated profitability scores based on user behavior and AOV patterns
+            - Represents expected revenue potential per user in the segment
+            - Higher scores indicate users likely to generate more profit upon conversion
+            
+            **3. Lift vs Control (0.0 - 1.0)**
+            ```
+            Formula: (conversion_potential × 0.6) + (profitability × 0.4)
+            
+            Weights breakdown:
+            • Conversion likelihood: 60% weight (primary factor)
+            • Profitability impact: 40% weight (secondary factor)
+            ```
+            
+            **Logic & Intuition:**
+            - Estimates performance improvement over baseline/control group
+            - Prioritizes conversion likelihood but considers profit impact
+            - Segments with both high conversion and profitability score highest
+            
+            **4. Size Score (0.0 - 1.0)**
+            ```
+            Formula: (segment_size - min_size) / (max_size - min_size)
+            
+            Where:
+            • min_size = smallest segment size across all segments
+            • max_size = largest segment size across all segments
+            ```
+            
+            **Logic & Intuition:**
+            - Normalized segment size relative to all other segments
+            - Larger segments score higher due to campaign efficiency benefits
+            - Enables cost-effective marketing with better statistical significance
+            - If all segments same size, defaults to 0.5
+            
+            **5. Strategic Fit (0.0 - 1.0)**
+            ```
+            Formula: (profitability × 0.4) + (aov_normalized × 0.6)
+            
+            Where:
+            • aov_normalized = (segment_aov - universe_aov_min) / (universe_aov_max - universe_aov_min)
+            • universe_aov_min/max = minimum/maximum AOV across entire dataset
+            ```
+            
+            **Logic & Intuition:**
+            - Measures alignment with business priorities and marketing capabilities
+            - High-AOV segments score higher (60% weight) as they're strategically valuable
+            - Profitability adds 40% weight to ensure revenue focus
+            - Balances strategic value (AOV) with immediate profitability
+            
+            **6. Overall Score (0.0 - 1.0)**
+            ```
+            Formula: Weighted sum of all component scores
+            
+            overall_score = (conversion_potential × 0.30) +
+                          (lift_vs_control × 0.25) +
+                          (profitability × 0.20) +
+                          (strategic_fit × 0.15) +
+                          (size_score × 0.10)
+            ```
+            
+            **Weight Rationale:**
+            - **Conversion (30%)**: Primary business goal - getting users to convert
+            - **Lift (25%)**: Performance improvement over baseline campaigns
+            - **Profitability (20%)**: Revenue generation potential
+            - **Strategic Fit (15%)**: Long-term business value alignment
+            - **Size (10%)**: Campaign efficiency and statistical significance
+            
+            **Technical Notes:**
+            - All values are clamped between 0.0 and 1.0 using max(0.0, min(1.0, value))
+            - Segment-level scores are averages of individual user scores within each segment
+            - Empty segments (size=0) default to 0.0 for all metrics
+            """)
         
         if len(active_segments) > 0:
             # Format the dataframe for better display
@@ -88,11 +214,33 @@ def display_segments_summary(output_directory):
         else:
             st.warning("No active segments found")
         
-        # Display merged segments if any
+        # Display merged segments if any - DISPLAY ONLY, not included in calculations
         if len(merged_segments) > 0:
             st.markdown("---")
-            st.subheader("🔀 Merged Segments")
-            st.caption("These segments were merged due to size constraints")
+            st.subheader("Merged Segments")
+            st.caption("These segments were merged due to size constraints (not included in above metrics)")
+            
+            # Expandable help section for Merged Segments
+            with st.expander("ℹ️ Column Explanations - Merged Segments", expanded=False):
+                st.markdown("""
+                **Why Segments Get Merged:**
+                
+                Segments with insufficient users (i.e., < 500) are automatically merged into larger, 
+                related segments to ensure statistical significance and campaign viability.
+                
+                **Column Details:**
+                
+                • **segment_name**: Original segment name before merging  
+                • **rules_applied**: The specific business logic that defined this segment  
+                • **valid_flag**: Always "No" for merged segments (indicates inactive status)  
+                • **merged_into**: Target segment ID where these users were consolidated  
+                • **notes**: Explanation of merging decision and which segments were combined  
+                
+                **Understanding None Values:**
+                
+                • **merged_into**: Will be None only if segment wasn't merged (should not happen here)  
+                • **notes**: Will be None if no additional context was needed for the merge decision            
+                """)
             
             # Format merged segments - show only specified columns
             display_merged = merged_segments.copy()
@@ -112,20 +260,23 @@ def display_segments_summary(output_directory):
             else:
                 st.warning("Required columns not found in merged segments data")
         
-        # Segment performance visualization
+        # Segment performance visualization - ONLY for active segments
         if len(active_segments) > 0:
             st.markdown("---")
-            st.subheader("📊 Segment Performance Analysis")
+            st.subheader("Segment Performance Analysis")
             
             col1, col2 = st.columns(2)
             
             with col1:
                 # Size distribution
-                import plotly.express as px
-                
                 size_data = active_segments['size'].astype(int)
                 segment_names = active_segments['segment_name']
                 
+                with st.expander("ℹ️ Segment Size Distribution", expanded=False):
+                    st.markdown("""
+                    This bar chart displays the number of users in each segment. Each bar represents a segment, with the height showing the total user count for that segment.
+                    """)
+                        
                 fig_size = px.bar(
                     x=segment_names,
                     y=size_data,
@@ -136,6 +287,12 @@ def display_segments_summary(output_directory):
                 st.plotly_chart(fig_size, use_container_width=True)
             
             with col2:
+                
+                with st.expander("ℹ️ Conversion Potential vs Profitability", expanded=False):
+                    st.markdown("""
+                    This scatter plot compares conversion potential (x-axis) against profitability (y-axis) for each segment. The bubble size represents the number of users in each segment, while the color indicates the overall performance score.
+                    """)
+                    
                 # Score comparison
                 fig_scores = px.scatter(
                     active_segments,
@@ -187,20 +344,19 @@ def display_user_segment_mapping(output_directory):
                         on='user_id', 
                         how='left'
                     )
-                    st.info("✅ Enhanced with class_label and region data from main dataset")
                 else:
-                    st.info("📄 Displaying basic segment distribution (class_label and region not available)")
+                    st.info("Displaying basic segment distribution (class_label and region not available)")
             except Exception as e:
                 st.warning(f"Could not load enhanced data: {str(e)}")
                 enhanced_df = df.copy()
         
-        st.subheader("👥 User Distribution Summary")
+        st.subheader("User Distribution Summary")
         
         # Basic segment distribution
         segment_distribution = enhanced_df['segment_name'].value_counts()
         
         # Create tabs for different views
-        tab1, tab2, tab3 = st.tabs(["📊 Segment Distribution", "🏷️ Class Labels", "🌍 Regional Analysis"])
+        tab1, tab2, tab3 = st.tabs(["Segment Distribution", "Class Labels", "Regional Analysis"])
         
         with tab1:
             col1, col2 = st.columns([1, 1])
@@ -212,9 +368,13 @@ def display_user_segment_mapping(output_directory):
                     st.write(f"• {segment}: {count:,} users ({percentage:.1f}%)")
             
             with col2:
-                # Pie chart of segment distribution
-                import plotly.express as px
+                # Expandable explanation for pie chart
+                with st.expander("ℹ️ Understanding Pie Chart", expanded=False):
+                    st.markdown("""
+                    This pie chart displays the proportional distribution of users across different segments in your dataset. Each colored slice represents a segment, with the size of the slice corresponding to the number of users in that segment relative to the total user base.
+                    """)
                 
+                # Pie chart of segment distribution
                 fig_dist = px.pie(
                     values=segment_distribution.values,
                     names=segment_distribution.index,
@@ -236,6 +396,12 @@ def display_user_segment_mapping(output_directory):
                         st.write(f"• {class_label}: {count:,} users ({percentage:.1f}%)")
                 
                 with col2:
+                    # Expandable explanation for class label pie chart
+                    with st.expander("ℹ️ Understanding Class Label Chart", expanded=False):
+                        st.markdown("""
+                        This pie chart shows the distribution of users by their original class labels from the source dataset. Each slice represents a different customer classification, helping you understand the composition of your cart abandoner dataset.
+                        """)
+                    
                     # Class label pie chart
                     fig_class = px.pie(
                         values=class_distribution.values,
@@ -247,7 +413,12 @@ def display_user_segment_mapping(output_directory):
                 
                 # Cross-analysis: Segments by Class Label
                 st.markdown("---")
-                st.markdown("**Segment vs Class Label Analysis:**")
+                
+                # Expandable explanation for heatmap
+                with st.expander("ℹ️ Understanding Segment vs Class Label Heatmap", expanded=False):
+                    st.markdown("""
+                    This heatmap displays the cross-tabulation between your new segments and original class labels. The color intensity indicates the number of users in each segment-class combination, with darker colors representing higher user counts.
+                    """)
                 
                 cross_table = pd.crosstab(enhanced_df['segment_name'], enhanced_df['class_label'])
                 
@@ -279,6 +450,12 @@ def display_user_segment_mapping(output_directory):
                         st.write(f"• {region}: {count:,} users ({percentage:.1f}%)")
                 
                 with col2:
+                    # Expandable explanation for regional bar chart
+                    with st.expander("ℹ️ Understanding Regional Distribution", expanded=False):
+                        st.markdown("""
+                        This bar chart shows the geographical distribution of cart abandoners across different regions. Each bar represents a region, with the height indicating the number of users and the color intensity reflecting the user count.
+                        """)
+                    
                     # Regional bar chart
                     fig_region = px.bar(
                         x=region_distribution.index,
@@ -292,7 +469,12 @@ def display_user_segment_mapping(output_directory):
                 
                 # Cross-analysis: Segments by Region
                 st.markdown("---")
-                st.markdown("**Segment vs Region Analysis:**")
+                
+                # Expandable explanation for stacked bar chart
+                with st.expander("ℹ️ Understanding Segment Distribution by Region", expanded=False):
+                    st.markdown("""
+                    This stacked bar chart displays how each segment is distributed across different regions. Each bar represents a region, and the colored segments within each bar show the proportion of different user segments in that region.
+                    """)
                 
                 cross_table_region = pd.crosstab(enhanced_df['segment_name'], enhanced_df['region'])
                 
