@@ -3,6 +3,7 @@ import sys
 import os
 from datetime import datetime, date, timedelta
 from components.csv_display import display_segments_summary, display_user_segment_mapping
+from components.readme_display import show_readme_modal
 
 # Add parent directory to path to import segmentation modules
 parent_dir = os.path.abspath("..")
@@ -39,7 +40,7 @@ def main():
     
     # Sidebar for controls
     with st.sidebar:
-        st.header("Analysis Controls")
+        st.header("Previous Analysis")
         
         # Clear refresh flag if it exists
         if st.session_state.get('refresh_dropdown', False):
@@ -110,6 +111,19 @@ def main():
                     st.rerun()
                 else:
                     st.error(f"Analysis failed: {error}")
+        
+        st.markdown("---")
+        
+        # README Documentation Button
+        # st.subheader("Project Documentation")
+        if st.button("📖 View README", key="readme_button", type="secondary"):
+            st.session_state.show_readme = True
+            st.rerun()
+    
+    # Check if README should be displayed
+    if st.session_state.get('show_readme', False):
+        show_readme_modal()
+        return
     
     # Main content area
     if 'current_output_directory' in st.session_state:
