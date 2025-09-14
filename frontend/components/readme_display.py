@@ -9,12 +9,12 @@ def display_project_readme():
     # Table of Contents
     st.markdown("""
     **Contents:**
-    1. [Project Overview](#project-overview)
-    2. [Synthetic Data Generation](#synthetic-data-generation)  
-    3. [MECE Segmentation Framework](#mece-segmentation-framework)
-    4. [Technical Architecture](#technical-architecture)
-    5. [Scoring Methodology](#scoring-methodology)
-    6. [Validation & Quality Assurance](#validation-quality-assurance)
+    1. [Project Overview](#1-project-overview)
+    2. [Synthetic Data Generation](#2-synthetic-data-generation)  
+    3. [MECE Segmentation Framework](#3-mece-segmentation-framework)
+    4. [Technical Architecture](#4-technical-architecture)
+    5. [Scoring Methodology](#5-scoring-methodology)
+    6. [Validation & Quality Assurance](#6-validation-quality-assurance)
     """)
     
     st.markdown("---")

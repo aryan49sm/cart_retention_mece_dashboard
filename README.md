@@ -8,10 +8,37 @@ This tool helps e-commerce teams recover abandoned carts by automatically groupi
 
 The system takes cart abandonment data and creates customer segments using purchase history, engagement levels, and profitability metrics. Each segment gets scored and ranked so marketing teams know which groups to prioritize for their campaigns.
 
+## How It Works
+
+**Step 1: Load Existing Data**
+The system uses pre-existing cart abandonment CSV file with customer behavior data
+
+**Step 2: Select Analysis Period**
+Choose a 7-day date range for segmentation analysis
+
+**Step 3: Run Segmentation Engine**
+```
+All Cart Abandoners → AOV Analysis → Engagement Analysis → Final Segments
+                         ↓                 ↓                    ↓
+                    High/Med/Low    High/Low Engagement   5 Distinct Segments
+```
+
+**Step 4: Scoring and Ranking**
+Each segment gets scored on conversion potential, lift vs control, profitability, strategic fit, and size. Undersized segments (below 500 users) are automatically merged with similar segments to ensure campaign viability.
+
+**Step 5: View Results**
+Access comprehensive reports, segment mappings, and decision tree visualizations
+
 ## Live Demo
 [View Live App](https://cart-retention-mece-dashboard.streamlit.app/)
 
 ## Key Features
+
+
+**Synthetic Data Generation**
+- Created realistic cart abandonment datasets for testing
+- Models different customer archetypes (Casual, Regular, VIP, Dormant)
+- Includes seasonal patterns and behavioral variability
 
 **MECE-Based Segmentation**
 - Creates non-overlapping customer segments based on purchase behavior
@@ -19,39 +46,17 @@ The system takes cart abandonment data and creates customer segments using purch
 - Ensures every customer is classified into exactly one segment
 
 **Multi-Dimensional Scoring**
-- Conversion Potential: How likely customers are to purchase
-- Profitability Score: Revenue potential per customer
-- Strategic Fit: Long-term business value alignment
-- Campaign Efficiency: Segment size and targeting feasibility
+- Conversion Potential: How likely customers are to purchase (30% weight)
+- Lift vs Control: Expected campaign performance improvement (25% weight)
+- Profitability Score: Revenue potential per customer (20% weight)
+- Strategic Fit: Long-term business value alignment (15% weight)
+- Size Score: Segment size for campaign efficiency (10% weight)
 
 **Interactive Dashboard**
 - Real-time segmentation for any 7-day period
 - Visual segment trees showing decision logic
 - Comprehensive reports with actionable insights
 - Export capabilities for marketing team execution
-
-**Synthetic Data Generation**
-- Creates realistic cart abandonment datasets for testing
-- Models different customer archetypes (Casual, Regular, VIP, Dormant)
-- Includes seasonal patterns and behavioral variability
-
-## How It Works
-
-**Step 1: Data Input**
-Upload or generate cart abandonment data with customer behavior metrics
-
-**Step 2: Segmentation Engine**
-```
-All Cart Abandoners → AOV Analysis → Engagement Analysis → Final Segments
-                         ↓                 ↓                     ↓
-                    (High/Med/Low)  (High/Low Engagement)   (5 Distinct Segments)
-```
-
-**Step 3: Scoring and Ranking**
-Each segment gets scored on conversion potential, profitability, and strategic value
-
-**Step 4: Campaign Strategy**
-Receive specific recommendations for targeting each segment
 
 ## Quick Start Guide
 
@@ -99,39 +104,56 @@ http://localhost:8501
 
 ## Usage Guide
 
-### Generate Sample Data
+### Load Previous Analysis
+1. Go to "Previous Analysis" in the sidebar
+2. Select from existing analysis periods in the dropdown
+3. View the results from previously run segmentation analyses
+
+### Run New Analysis Period
 1. Go to "New Analysis Period" in the sidebar
-2. Select a 7-day date range
-3. Click "Generate Synthetic Data" to create sample cart abandoners
-4. Wait for data generation to complete (about 30 seconds)
+2. Select a 7-day date range (Start Date and End Date)
+3. System validates if analysis already exists for this date range
+4. Click "Run New Segmentation Analysis" to process the data
+5. Get segmentation within a second
 
-### Analyze Segments
-1. After data generation, click "Run Segmentation Analysis"
-2. View the segment tree visualization showing decision logic
-3. Explore detailed segment reports with customer counts and metrics
-4. Check scoring results to see segment priorities
-
-### Explore Dashboard
-- **Segments Summary**: Overview of all customer segments
+### Explore Results
+- **Segments Summary**: Overview of all customer segments with counts and metrics
 - **User Mapping**: Individual customer segment assignments
-- **MECE Report**: Detailed segmentation methodology and results
-- **Tree Visualization**: Interactive decision tree display
+- **MECE Report**: Detailed segmentation methodology and validation results
+- **Tree Visualization**: Interactive decision tree showing segmentation logic
 
 ### View Documentation
-Click the "README" button in the sidebar for comprehensive technical documentation
+Click the "View README" button in the sidebar for comprehensive technical documentation
 
 ## Project Structure
 
 ```
-├── frontend/                  # Streamlit web application
-│   ├── app.py                 # Main application file
-│   ├── components/            # UI components
-│   └── utils/                 # Helper functions
-├── data_generation/           # Synthetic data creation
-├── requirements.txt           # Python dependencies
-├── segmentation_engine.py     # Core segmentation logic
-├── segment_scorer.py          # Segment scoring algorithms
-└── README.md                
+├── .streamlit/                    # Streamlit configuration
+│   └── config.toml                # App configuration
+|
+├── frontend/                      # Streamlit web application
+│   ├── app.py                     # Main application file
+│   ├── components/                # UI components
+│   │   ├── csv_display.py         # Segment data visualization
+│   │   ├── mece_display.py        # MECE compliance reports
+│   │   ├── readme_display.py      # Technical documentation
+│   │   ├── tree_visualization.py  # Decision tree display
+│   │   └── simple_csv_viewer.py   # CSV data viewer
+│   └── utils/                     # Helper functions
+│       └── data_processing.py     # Data validation & processing
+|
+├── data_generation/               # Synthetic data creation tools
+│   ├── generate_simulated_data.py # Data generator
+│   ├── param_spec.json            # Generation parameters
+│   └── csv_ydata_profiling.py     # Data profiling
+|
+├── output*/                       # Analysis results by date range
+|
+├── segmentation_engine.py         # Core segmentation logic
+├── segment_scorer.py              # Multi-dimensional scoring
+├── segment_optimizer.py           # Size constraint handling
+├── output_generator.py            # Results compilation
+└── data_validator.py              # Input data validation
 ```
 
 ## Dependencies
