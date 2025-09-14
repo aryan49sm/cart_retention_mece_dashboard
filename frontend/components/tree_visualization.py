@@ -4,7 +4,9 @@ import plotly.express as px
 import json
 import os
 import pandas as pd
+import numpy as np
 from datetime import datetime
+import math
 
 def create_segmentation_tree(output_directory):
     """
@@ -31,22 +33,29 @@ def create_segmentation_tree(output_directory):
             st.warning("No active segments to visualize")
             return
         
-        st.subheader("🌳 Segmentation Decision Tree")
+        st.subheader("🌳 Interactive Segmentation Decision Tree")
         
-        # Create the tree structure
-        fig = create_decision_tree_plotly(active_segments)
-        st.plotly_chart(fig, use_container_width=True)
+        # Create tabs for different visualizations
+        tab1, tab2, tab3 = st.tabs(["🌳 Decision Tree", "📊 Performance Matrix", "🔄 Segment Flow"])
         
-        # Add segment flow diagram
-        st.markdown("---")
-        create_segment_flow_diagram(active_segments)
+        with tab1:
+            fig = create_modern_decision_tree(active_segments)
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with tab2:
+            create_performance_matrix(active_segments)
+            
+        with tab3:
+            create_segment_flow_visualization(active_segments)
         
     except Exception as e:
         st.error(f"Error creating tree visualization: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
 
-def create_decision_tree_plotly(segments_df):
+def create_modern_decision_tree(segments_df):
     """
-    Create a Plotly decision tree visualization.
+    Create a modern, beautiful decision tree visualization.
     
     Args:
         segments_df (pd.DataFrame): DataFrame with segment information
@@ -55,176 +64,184 @@ def create_decision_tree_plotly(segments_df):
         plotly.graph_objects.Figure: The tree visualization
     """
     
-    # Define the hierarchical structure (AOV -> Engagement -> Profitability)
-    # We'll create a simplified tree based on segment names
-    
-    nodes = []
-    edges = []
-    node_colors = []
-    node_sizes = []
-    node_text = []
-    
-    # Root node
-    nodes.append((0, 0))  # (x, y)
-    node_text.append("All Users<br>Cart Abandoners")
-    node_colors.append("lightblue")
-    node_sizes.append(50)
-    
-    # Parse segment names to build tree structure
-    # Assuming segment names follow pattern: "High AOV, High Engagement, High Profitability"
-    
-    # Create AOV level (level 1)
-    aov_levels = ["High AOV", "Medium AOV", "Low AOV"]
-    aov_positions = [(-2, -1), (0, -1), (2, -1)]
-    
-    for i, (aov, pos) in enumerate(zip(aov_levels, aov_positions)):
-        nodes.append(pos)
-        node_text.append(f"{aov}<br>Branch")
-        node_colors.append("lightgreen")
-        node_sizes.append(40)
-        
-        # Add edge from root
-        edges.append(((0, 0), pos))
-    
-    # Create Engagement level (level 2) 
-    engagement_levels = ["High Engagement", "Medium Engagement", "Low Engagement"]
-    eng_base_y = -2
-    
-    for i, aov_pos in enumerate(aov_positions):
-        for j, eng in enumerate(engagement_levels):
-            x_offset = -0.8 + (j * 0.8)
-            pos = (aov_pos[0] + x_offset, eng_base_y)
-            nodes.append(pos)
-            node_text.append(f"{eng}<br>Sub-branch")
-            node_colors.append("lightyellow")
-            node_sizes.append(30)
-            
-            # Add edge from AOV level
-            edges.append((aov_pos, pos))
-    
-    # Add actual segments at the bottom (level 3)
-    segment_y = -3
-    segments_added = 0
+    # Parse segment rules to understand the decision criteria
+    segments_data = []
     
     for idx, segment in segments_df.iterrows():
-        if segments_added >= 15:  # Limit to prevent overcrowding
-            break
-            
-        x_pos = -4 + (segments_added * 0.6)
-        pos = (x_pos, segment_y)
-        nodes.append(pos)
-        
-        # Format segment info
-        segment_info = f"{segment['segment_name']}<br>"
-        segment_info += f"Size: {segment['size']:,}<br>"
-        segment_info += f"Score: {segment['overall_score']:.3f}"
-        
-        node_text.append(segment_info)
-        
-        # Color based on score
-        score = segment['overall_score']
-        if score >= 0.7:
-            color = "green"
-        elif score >= 0.4:
-            color = "orange"
-        else:
-            color = "red"
-        
-        node_colors.append(color)
-        node_sizes.append(25 + (score * 25))  # Size based on score
-        
-        # Connect to a parent node (simplified connection)
-        parent_idx = 1 + (segments_added % 3)  # Connect to AOV level nodes
-        if parent_idx < len(nodes) - 1:
-            edges.append((nodes[parent_idx], pos))
-        
-        segments_added += 1
+        segment_info = {
+            'id': segment['segment_id'],
+            'name': segment['segment_name'],
+            'size': segment['size'],
+            'score': segment['overall_score'],
+            'conversion_potential': segment.get('conversion_potential', 0.5),
+            'profitability': segment.get('profitability', 0.5),
+            'rules': segment.get('segment_rules', '')
+        }
+        segments_data.append(segment_info)
     
-    # Create the plot
+    # Create tree layout
     fig = go.Figure()
     
-    # Add edges
-    for edge in edges:
+    # Define color palette
+    colors = {
+        'high': '#2E8B57',      # Sea Green
+        'medium': '#FF8C00',    # Dark Orange  
+        'low': '#DC143C',       # Crimson
+        'root': '#4169E1',      # Royal Blue
+        'branch': '#9370DB'     # Medium Purple
+    }
+    
+    # Root node
+    fig.add_trace(go.Scatter(
+        x=[0], y=[4],
+        mode='markers+text',
+        marker=dict(size=80, color=colors['root'], 
+                   line=dict(width=3, color='white'),
+                   symbol='circle'),
+        text=['Cart Abandoners<br>Universe'],
+        textposition="middle center",
+        textfont=dict(size=12, color='white', family='Arial Black'),
+        showlegend=False,
+        hovertemplate='<b>Cart Abandoners Universe</b><br>' +
+                     f'Total Users: {segments_df["size"].sum():,}<br>' +
+                     '<extra></extra>'
+    ))
+    
+    # Level 1: AOV Branches
+    aov_branches = ['High AOV', 'Medium AOV', 'Low AOV']
+    aov_positions = [(-3, 2.5), (0, 2.5), (3, 2.5)]
+    aov_colors = [colors['high'], colors['medium'], colors['low']]
+    
+    for i, (branch, pos, color) in enumerate(zip(aov_branches, aov_positions, aov_colors)):
+        # Add branch node
         fig.add_trace(go.Scatter(
-            x=[edge[0][0], edge[1][0]],
-            y=[edge[0][1], edge[1][1]],
+            x=[pos[0]], y=[pos[1]],
+            mode='markers+text',
+            marker=dict(size=60, color=color,
+                       line=dict(width=2, color='white'),
+                       symbol='diamond'),
+            text=[f'{branch}<br>Branch'],
+            textposition="middle center", 
+            textfont=dict(size=10, color='white', family='Arial'),
+            showlegend=False,
+            hovertemplate=f'<b>{branch} Branch</b><br>' +
+                         'Decision Node<br>' +
+                         '<extra></extra>'
+        ))
+        
+        # Add connecting line from root
+        fig.add_trace(go.Scatter(
+            x=[0, pos[0]], y=[4, pos[1]],
             mode='lines',
-            line=dict(color='gray', width=2),
+            line=dict(color='#708090', width=3, dash='solid'),
             showlegend=False,
             hoverinfo='skip'
         ))
     
-    # Add nodes
-    x_coords = [node[0] for node in nodes]
-    y_coords = [node[1] for node in nodes]
+    # Level 2: Segment Leaves
+    num_segments = len(segments_data)
+    if num_segments > 0:
+        # Distribute segments across the width
+        segment_width = 8  # Total width for segments
+        segment_spacing = segment_width / max(num_segments - 1, 1) if num_segments > 1 else 0
+        start_x = -segment_width / 2
+        
+        for i, segment in enumerate(segments_data):
+            x_pos = start_x + (i * segment_spacing)
+            y_pos = 1
+            
+            # Color based on overall score
+            score = segment['score']
+            if score >= 0.7:
+                color = colors['high']
+                label = 'High Performer'
+            elif score >= 0.4:
+                color = colors['medium'] 
+                label = 'Medium Performer'
+            else:
+                color = colors['low']
+                label = 'Low Performer'
+            
+            # Size based on segment size (normalized)
+            max_size = max([s['size'] for s in segments_data])
+            normalized_size = 30 + (segment['size'] / max_size) * 40
+            
+            # Add segment node
+            fig.add_trace(go.Scatter(
+                x=[x_pos], y=[y_pos],
+                mode='markers+text',
+                marker=dict(size=normalized_size, color=color,
+                           line=dict(width=2, color='white'),
+                           symbol='hexagon'),
+                text=[f"{segment['id']}<br>{segment['size']:,}"],
+                textposition="middle center",
+                textfont=dict(size=8, color='white', family='Arial'),
+                showlegend=False,
+                hovertemplate=f"<b>{segment['name']}</b><br>" +
+                             f"ID: {segment['id']}<br>" +
+                             f"Size: {segment['size']:,} users<br>" +
+                             f"Score: {segment['score']:.3f}<br>" +
+                             f"Performance: {label}<br>" +
+                             f"<extra></extra>"
+            ))
+            
+            # Connect to appropriate AOV branch (simplified logic)
+            parent_idx = i % 3  # Distribute across 3 AOV branches
+            parent_pos = aov_positions[parent_idx]
+            
+            fig.add_trace(go.Scatter(
+                x=[parent_pos[0], x_pos], y=[parent_pos[1], y_pos],
+                mode='lines',
+                line=dict(color='#B0C4DE', width=2, dash='dot'),
+                showlegend=False,
+                hoverinfo='skip'
+            ))
     
-    fig.add_trace(go.Scatter(
-        x=x_coords,
-        y=y_coords,
-        mode='markers+text',
-        marker=dict(
-            size=node_sizes,
-            color=node_colors,
-            line=dict(width=2, color='black')
-        ),
-        text=node_text,
-        textposition="middle center",
-        textfont=dict(size=10),
-        showlegend=False,
-        hovertemplate='%{text}<extra></extra>'
-    ))
+    # Add legend manually using annotations
+    fig.add_annotation(
+        x=0.02, y=0.98,
+        xref="paper", yref="paper",
+        text="<b>Performance Levels:</b><br>" +
+             "<span style='color:#2E8B57'>●</span> High (0.7+)<br>" +
+             "<span style='color:#FF8C00'>●</span> Medium (0.4-0.7)<br>" +
+             "<span style='color:#DC143C'>●</span> Low (<0.4)",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="gray",
+        borderwidth=1,
+        font=dict(size=10)
+    )
     
     # Update layout
     fig.update_layout(
-        title="Segmentation Decision Tree",
+        title={
+            'text': "Segmentation Decision Tree - Interactive View",
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 16, 'family': 'Arial Black'}
+        },
         showlegend=False,
-        height=600,
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        plot_bgcolor='white'
+        height=700,
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[-5, 5]),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, range=[0, 5]),
+        plot_bgcolor='rgba(248,249,250,0.8)',
+        paper_bgcolor='white',
+        margin=dict(l=50, r=50, t=80, b=50)
     )
     
     return fig
 
-def create_segment_flow_diagram(segments_df):
+def create_performance_matrix(segments_df):
     """
-    Create a flow diagram showing segment distribution and performance.
+    Create a performance matrix visualization showing segment relationships.
     
     Args:
         segments_df (pd.DataFrame): DataFrame with segment information
     """
     
-    st.subheader("📊 Segment Performance Flow")
+    st.subheader("📊 Segment Performance Matrix")
     
-    # Create a horizontal bar chart showing segment sizes and scores
-    fig = go.Figure()
-    
-    # Sort segments by size
-    segments_sorted = segments_df.sort_values('size', ascending=True)
-    
-    # Add bar for segment sizes
-    fig.add_trace(go.Bar(
-        y=segments_sorted['segment_name'],
-        x=segments_sorted['size'],
-        name='Segment Size',
-        orientation='h',
-        marker_color='lightblue',
-        text=segments_sorted['size'].apply(lambda x: f"{x:,}"),
-        textposition='auto'
-    ))
-    
-    # Update layout
-    fig.update_layout(
-        title="Segment Size Distribution",
-        xaxis_title="Number of Users",
-        yaxis_title="Segments",
-        height=max(400, len(segments_sorted) * 40),
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Score comparison
     col1, col2 = st.columns(2)
     
     with col1:
@@ -233,33 +250,132 @@ def create_segment_flow_diagram(segments_df):
             segments_df,
             x='size',
             y='overall_score',
-            size='conversion_potential',
-            color='profitability',
+            size='conversion_potential' if 'conversion_potential' in segments_df.columns else 'size',
+            color='profitability' if 'profitability' in segments_df.columns else 'overall_score',
             hover_name='segment_name',
-            title="Segment Size vs Overall Score",
-            color_continuous_scale='RdYlGn'
+            title="Segment Size vs Performance Score",
+            color_continuous_scale='RdYlGn',
+            labels={
+                'size': 'Segment Size (Users)',
+                'overall_score': 'Overall Performance Score'
+            }
         )
-        fig_scatter.update_xaxis(title="Segment Size")
-        fig_scatter.update_yaxis(title="Overall Score")
+        
+        fig_scatter.update_layout(
+            height=400,
+            xaxis_title="Segment Size (Users)",
+            yaxis_title="Overall Performance Score",
+            plot_bgcolor='rgba(248,249,250,0.8)'
+        )
+        
         st.plotly_chart(fig_scatter, use_container_width=True)
     
     with col2:
-        # Box plot of scores
-        fig_box = go.Figure()
+        # Performance distribution
+        fig_dist = go.Figure()
         
-        fig_box.add_trace(go.Box(
-            y=segments_df['overall_score'],
-            name='Overall Score',
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
+        # Add histogram
+        fig_dist.add_trace(go.Histogram(
+            x=segments_df['overall_score'],
+            nbinsx=10,
+            marker_color='rgba(55, 83, 109, 0.7)',
+            marker_line=dict(color='white', width=2),
+            name='Score Distribution'
         ))
         
-        fig_box.update_layout(
-            title="Score Distribution",
-            yaxis_title="Overall Score"
+        fig_dist.update_layout(
+            title="Performance Score Distribution",
+            xaxis_title="Overall Score",
+            yaxis_title="Number of Segments",
+            height=400,
+            plot_bgcolor='rgba(248,249,250,0.8)',
+            showlegend=False
         )
-        st.plotly_chart(fig_box, use_container_width=True)
+        
+        st.plotly_chart(fig_dist, use_container_width=True)
+    
+    # Segment comparison table
+    st.subheader("📋 Segment Performance Comparison")
+    
+    # Create a styled dataframe
+    display_df = segments_df[['segment_id', 'segment_name', 'size', 'overall_score']].copy()
+    display_df['size'] = display_df['size'].apply(lambda x: f"{x:,}")
+    display_df['overall_score'] = display_df['overall_score'].apply(lambda x: f"{x:.3f}")
+    display_df.columns = ['Segment ID', 'Segment Name', 'Size', 'Score']
+    
+    st.dataframe(display_df, use_container_width=True)
+
+def create_segment_flow_visualization(segments_df):
+    """
+    Create a flow visualization showing segment progression and relationships.
+    
+    Args:
+        segments_df (pd.DataFrame): DataFrame with segment information
+    """
+    
+    st.subheader("🔄 Segment Flow & Progression")
+    
+    # Create a waterfall-style chart showing segment sizes
+    segments_sorted = segments_df.sort_values('overall_score', ascending=False)
+    
+    fig = go.Figure()
+    
+    # Create cumulative flow
+    cumulative_size = 0
+    colors = ['#2E8B57', '#32CD32', '#FFD700', '#FF8C00', '#FF6347', '#DC143C']
+    
+    for i, (idx, segment) in enumerate(segments_sorted.iterrows()):
+        color = colors[i % len(colors)]
+        
+        fig.add_trace(go.Bar(
+            x=[segment['segment_id']],
+            y=[segment['size']],
+            name=f"{segment['segment_id']} ({segment['size']:,})",
+            marker_color=color,
+            text=f"{segment['size']:,}",
+            textposition='auto',
+            hovertemplate=f"<b>{segment['segment_name']}</b><br>" +
+                         f"Size: {segment['size']:,}<br>" +
+                         f"Score: {segment['overall_score']:.3f}<br>" +
+                         "<extra></extra>"
+        ))
+    
+    fig.update_layout(
+        title="Segment Size Distribution (Ranked by Performance)",
+        xaxis_title="Segment ID",
+        yaxis_title="Number of Users",
+        height=500,
+        plot_bgcolor='rgba(248,249,250,0.8)',
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Flow metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_users = segments_df['size'].sum()
+        st.metric("Total Users", f"{total_users:,}")
+    
+    with col2:
+        avg_score = segments_df['overall_score'].mean()
+        st.metric("Avg Score", f"{avg_score:.3f}")
+    
+    with col3:
+        top_segment = segments_sorted.iloc[0]
+        st.metric("Top Segment", f"{top_segment['segment_id']}")
+    
+    with col4:
+        score_range = segments_df['overall_score'].max() - segments_df['overall_score'].min()
+        st.metric("Score Range", f"{score_range:.3f}")
 
 def create_merge_process_animation(output_directory):
     """
@@ -286,96 +402,43 @@ def create_merge_process_animation(output_directory):
             st.info("No segments were merged in this analysis")
             return
         
-        # Create before/after comparison
+        st.write(f"**Active Segments:** {len(active_segments)}")
+        st.write(f"**Merged Segments:** {len(merged_segments)}")
+        
+        # Show merge impact
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Before Merging:**")
-            # Show original count (estimated)
-            total_original = len(active_segments) + len(merged_segments)
-            st.metric("Original Segments", total_original)
-            
-            # List merged segments
-            if len(merged_segments) > 0:
-                st.write("**Segments that were merged:**")
-                for _, segment in merged_segments.iterrows():
-                    st.write(f"• {segment['segment_name']} ({segment['size']:,} users)")
-                    if pd.notna(segment['merged_into']):
-                        st.write(f"  → Merged into: {segment['merged_into']}")
+            st.subheader("Active Segments")
+            active_chart = px.bar(
+                active_segments,
+                x='segment_id',
+                y='size',
+                color='overall_score',
+                title="Active Segment Sizes",
+                color_continuous_scale='Viridis'
+            )
+            st.plotly_chart(active_chart, use_container_width=True)
         
         with col2:
-            st.write("**After Merging:**")
-            st.metric("Final Segments", len(active_segments))
-            st.metric("Segments Merged", len(merged_segments))
-            
-            # Calculate efficiency gain
-            efficiency = (len(merged_segments) / total_original) * 100
-            st.metric("Optimization", f"{efficiency:.1f}%")
+            st.subheader("Merged Segments")
+            if len(merged_segments) > 0:
+                merged_chart = px.bar(
+                    merged_segments.head(10),  # Show top 10 merged
+                    x=range(len(merged_segments.head(10))),
+                    y='size',
+                    title="Merged Segment Sizes (Top 10)",
+                    color_discrete_sequence=['#FF6B6B']
+                )
+                merged_chart.update_layout(xaxis_title="Merged Segment Index")
+                st.plotly_chart(merged_chart, use_container_width=True)
+            else:
+                st.info("No merged segments to display")
         
-        # Sankey diagram for merge flow
-        if len(merged_segments) > 0:
-            create_merge_sankey(active_segments, merged_segments)
-    
     except Exception as e:
         st.error(f"Error creating merge visualization: {str(e)}")
 
-def create_merge_sankey(active_segments, merged_segments):
-    """
-    Create a Sankey diagram showing the merge flow.
-    
-    Args:
-        active_segments (pd.DataFrame): Active segments
-        merged_segments (pd.DataFrame): Merged segments
-    """
-    
-    try:
-        # Prepare data for Sankey
-        source = []
-        target = []
-        value = []
-        labels = []
-        
-        # Add all segment names to labels
-        all_segments = list(merged_segments['segment_name']) + list(active_segments['segment_name'])
-        unique_targets = merged_segments['merged_into'].dropna().unique()
-        
-        labels = all_segments + [f"{target} (Final)" for target in unique_targets]
-        
-        # Create flows
-        for _, merged in merged_segments.iterrows():
-            if pd.notna(merged['merged_into']):
-                source_idx = labels.index(merged['segment_name'])
-                target_name = f"{merged['merged_into']} (Final)"
-                
-                if target_name in labels:
-                    target_idx = labels.index(target_name)
-                    source.append(source_idx)
-                    target.append(target_idx)
-                    value.append(merged['size'])
-        
-        if source:  # Only create if we have data
-            fig = go.Figure(data=[go.Sankey(
-                node=dict(
-                    pad=15,
-                    thickness=20,
-                    line=dict(color="black", width=0.5),
-                    label=labels,
-                    color="blue"
-                ),
-                link=dict(
-                    source=source,
-                    target=target,
-                    value=value
-                )
-            )])
-            
-            fig.update_layout(
-                title_text="Segment Merge Flow",
-                font_size=10,
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    except Exception as e:
-        st.warning(f"Could not create Sankey diagram: {str(e)}")
+# Legacy function for backward compatibility
+def create_segment_flow_diagram(segments_df):
+    """Legacy function - redirects to new visualization"""
+    create_segment_flow_visualization(segments_df)
