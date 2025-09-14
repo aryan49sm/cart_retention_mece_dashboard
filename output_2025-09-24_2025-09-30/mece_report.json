@@ -1,0 +1,107 @@
+{
+  "window_start": "2025-09-24",
+  "window_end": "2025-09-30",
+  "universe_size": 5374,
+  "min_segment_size": 500,
+  "max_segment_size": 20000,
+  "percentiles": {
+    "AOV_p20": 50.0,
+    "AOV_p50": 90.0,
+    "AOV_p80": 210.0,
+    "eng_p50": 0.305,
+    "prof_p50": 0.122
+  },
+  "segment_counts": {
+    "MidAOV_HighEng_HighProf": 802,
+    "MidAOV_HighEng_LowProf": 598,
+    "HighAOV_ELSE_ELSE": 1051,
+    "LowAOV_HighEng_ELSE": 536,
+    "LowAOV_LowEng_ELSE": 1090,
+    "MidAOV_LowEng_ELSE": 1297
+  },
+  "merge_and_split_log": [
+    {
+      "action": "merge_profit_sibling",
+      "from": [
+        "HighAOV_HighEng_LowProf",
+        "HighAOV_HighEng_HighProf"
+      ],
+      "from_counts": {
+        "HighAOV_HighEng_LowProf": 109,
+        "HighAOV_HighEng_HighProf": 640
+      },
+      "to": "HighAOV_HighEng_ELSE",
+      "to_count": 749
+    },
+    {
+      "action": "merge_profit_sibling",
+      "from": [
+        "HighAOV_LowEng_HighProf",
+        "HighAOV_LowEng_LowProf"
+      ],
+      "from_counts": {
+        "HighAOV_LowEng_HighProf": 184,
+        "HighAOV_LowEng_LowProf": 118
+      },
+      "to": "HighAOV_LowEng_ELSE",
+      "to_count": 302
+    },
+    {
+      "action": "merge_to_aov_parent",
+      "from": [
+        "HighAOV_HighEng_ELSE",
+        "HighAOV_LowEng_ELSE"
+      ],
+      "from_counts": {
+        "HighAOV_HighEng_ELSE": 749,
+        "HighAOV_LowEng_ELSE": 302
+      },
+      "to": "HighAOV_ELSE_ELSE",
+      "to_count": 1051
+    },
+    {
+      "action": "merge_profit_sibling",
+      "from": [
+        "LowAOV_HighEng_HighProf",
+        "LowAOV_HighEng_LowProf"
+      ],
+      "from_counts": {
+        "LowAOV_HighEng_HighProf": 201,
+        "LowAOV_HighEng_LowProf": 335
+      },
+      "to": "LowAOV_HighEng_ELSE",
+      "to_count": 536
+    },
+    {
+      "action": "merge_profit_sibling",
+      "from": [
+        "LowAOV_LowEng_HighProf",
+        "LowAOV_LowEng_LowProf"
+      ],
+      "from_counts": {
+        "LowAOV_LowEng_HighProf": 361,
+        "LowAOV_LowEng_LowProf": 729
+      },
+      "to": "LowAOV_LowEng_ELSE",
+      "to_count": 1090
+    },
+    {
+      "action": "merge_profit_sibling",
+      "from": [
+        "MidAOV_LowEng_HighProf",
+        "MidAOV_LowEng_LowProf"
+      ],
+      "from_counts": {
+        "MidAOV_LowEng_HighProf": 482,
+        "MidAOV_LowEng_LowProf": 815
+      },
+      "to": "MidAOV_LowEng_ELSE",
+      "to_count": 1297
+    }
+  ],
+  "mece_validation": {
+    "duplicate_users": 0,
+    "exhaustiveness_check": true,
+    "total_users_assigned": 5374
+  }
+}

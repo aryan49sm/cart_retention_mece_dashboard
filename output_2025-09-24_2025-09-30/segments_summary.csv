@@ -1,0 +1,19 @@
+segment_id,segment_name,rules_applied,size,conversion_potential,profitability,lift_vs_control,size_score,strategic_fit,overall_score,valid_flag,merged_into,notes
+S001,HighAOV_ELSE_ELSE,avg_order_value > 210.00 & Engagement: ELSE & Profitability: ELSE,1051,0.285,0.229,0.262,0.677,0.147,0.286,Yes,,"Created by merging: HighAOV_HighEng_ELSE, HighAOV_LowEng_ELSE"
+S002,MidAOV_HighEng_HighProf,50.00 < avg_order_value <= 210.00 & engagement_score > 0.305 & profitability_score > 0.122,802,0.305,0.174,0.253,0.35,0.072,0.235,Yes,,
+S003,MidAOV_LowEng_ELSE,50.00 < avg_order_value <= 210.00 & engagement_score <= 0.305 & Profitability: ELSE,1297,0.088,0.106,0.095,1.0,0.044,0.178,Yes,,"Created by merging: MidAOV_LowEng_HighProf, MidAOV_LowEng_LowProf"
+S004,MidAOV_HighEng_LowProf,50.00 < avg_order_value <= 210.00 & engagement_score > 0.305 & profitability_score <= 0.122,598,0.294,0.082,0.209,0.081,0.035,0.17,Yes,,
+S005,LowAOV_HighEng_ELSE,avg_order_value <= 50.00 & engagement_score > 0.305 & Profitability: ELSE,536,0.259,0.107,0.199,0.0,0.043,0.155,Yes,,"Created by merging: LowAOV_HighEng_HighProf, LowAOV_HighEng_LowProf"
+S006,LowAOV_LowEng_ELSE,avg_order_value <= 50.00 & engagement_score <= 0.305 & Profitability: ELSE,1090,0.081,0.099,0.088,0.728,0.04,0.145,Yes,,"Created by merging: LowAOV_LowEng_HighProf, LowAOV_LowEng_LowProf"
+,HighAOV_HighEng_ELSE,avg_order_value > 210.00 & engagement_score > 0.305 & Profitability: ELSE,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_ELSE_ELSE,Merged into HighAOV_ELSE_ELSE
+,HighAOV_HighEng_HighProf,avg_order_value > 210.00 & engagement_score > 0.305 & profitability_score > 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_HighEng_ELSE,Merged into HighAOV_HighEng_ELSE
+,HighAOV_HighEng_LowProf,avg_order_value > 210.00 & engagement_score > 0.305 & profitability_score <= 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_HighEng_ELSE,Merged into HighAOV_HighEng_ELSE
+,HighAOV_LowEng_ELSE,avg_order_value > 210.00 & engagement_score <= 0.305 & Profitability: ELSE,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_ELSE_ELSE,Merged into HighAOV_ELSE_ELSE
+,HighAOV_LowEng_HighProf,avg_order_value > 210.00 & engagement_score <= 0.305 & profitability_score > 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_LowEng_ELSE,Merged into HighAOV_LowEng_ELSE
+,HighAOV_LowEng_LowProf,avg_order_value > 210.00 & engagement_score <= 0.305 & profitability_score <= 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,HighAOV_LowEng_ELSE,Merged into HighAOV_LowEng_ELSE
+,LowAOV_HighEng_HighProf,avg_order_value <= 50.00 & engagement_score > 0.305 & profitability_score > 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,LowAOV_HighEng_ELSE,Merged into LowAOV_HighEng_ELSE
+,LowAOV_HighEng_LowProf,avg_order_value <= 50.00 & engagement_score > 0.305 & profitability_score <= 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,LowAOV_HighEng_ELSE,Merged into LowAOV_HighEng_ELSE
+,LowAOV_LowEng_HighProf,avg_order_value <= 50.00 & engagement_score <= 0.305 & profitability_score > 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,LowAOV_LowEng_ELSE,Merged into LowAOV_LowEng_ELSE
+,LowAOV_LowEng_LowProf,avg_order_value <= 50.00 & engagement_score <= 0.305 & profitability_score <= 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,LowAOV_LowEng_ELSE,Merged into LowAOV_LowEng_ELSE
+,MidAOV_LowEng_HighProf,50.00 < avg_order_value <= 210.00 & engagement_score <= 0.305 & profitability_score > 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,MidAOV_LowEng_ELSE,Merged into MidAOV_LowEng_ELSE
+,MidAOV_LowEng_LowProf,50.00 < avg_order_value <= 210.00 & engagement_score <= 0.305 & profitability_score <= 0.122,0,0.0,0.0,0.0,0.0,0.0,0.0,No,MidAOV_LowEng_ELSE,Merged into MidAOV_LowEng_ELSE

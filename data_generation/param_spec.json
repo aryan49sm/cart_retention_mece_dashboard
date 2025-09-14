@@ -1,0 +1,264 @@
+{
+  "meta": {
+    "description": "Parameter spec for simulated cart-abandon dataset (30 days, ~22,000 rows). Deterministic seed, day-level spikes/troughs, latent classes, special cohorts, and explicit edge-case injections. Designed for sliding 7-day windows with realistic variability. engagement & profitability have NO missing values. last_order_date may be NULL ONLY for first-time users (controlled by meta.first_time_rate).",
+    "seed": 42,
+    "N_total": 22000,
+    "first_time_rate": 0.12,
+    "date_range": {
+      "start_day_index": 1,
+      "end_day_index": 30,
+      "note": "Dates should be mapped to an actual month (e.g., 2025-09-01 .. 2025-09-30) when generating."
+    },
+    "output_columns": [
+      "user_id",
+      "cart_abandoned_date",
+      "last_order_date",
+      "avg_order_value",
+      "sessions_last_30d",
+      "num_cart_items",
+      "engagement_score",
+      "profitability_score",
+      "class_label",
+      "region"
+    ],
+    "random_seed": 42,
+    "notes": "AOV rounded to nearest 10. engagement & profitability normalized 0..1 and present for every row. Percentile-based segmentation thresholds (p20,p50,p80) computed at runtime on the universe. last_order_date NULLs only represent first-time customers."
+  },
+
+  "day_level": {
+    "base_mean_per_day_value": 733.3333333333334,
+    "daily_weights": {
+      "description": "Base multipliers per day before random jitter; index uses day numbers 1..30",
+      "weights": [1.00, 1.00, 0.35, 1.00, 1.00, 3.00, 1.00, 1.00, 1.00, 1.60, 1.00, 0.40, 1.00, 1.00, 2.50, 1.00, 1.00, 1.50, 1.00, 1.00, 0.50, 1.00, 1.00, 2.20, 1.00, 1.00, 1.50, 1.00, 1.00, 1.00],
+      "spike_days": {
+        "major": [6, 15, 24],
+        "major_weights": [3.0, 2.5, 2.2],
+        "medium_spikes": [10, 18, 27],
+        "medium_weights": [1.6, 1.5, 1.5],
+        "low_troughs": [3, 12, 22],
+        "low_weights": [0.35, 0.4, 0.5]
+      },
+      "seasonal_tilt": {
+        "description": "Additive tilt function to slightly increase later month counts",
+        "formula": "tilt = 0.01 * (day_index - 15) applied additively to daily weight before jitter"
+      },
+      "random_jitter": {
+        "distribution": "Gamma",
+        "params": {
+          "shape": 5.0,
+          "scale": 0.2
+        },
+        "note": "Gamma(shape=5, scale=1/5) mean=1.0 small variance; apply multiplicatively to daily weight"
+      },
+      "count_sampling": {
+        "distribution": "NegativeBinomial",
+        "params": {
+          "dispersion_k": 4.0
+        },
+        "use": "For each day d compute expected E[d] = base_mean * weight[d] * (1 + seasonal_tilt) * jitter; then draw c[d] ~ NegBin(mean=E[d], k=4)"
+      }
+    }
+  },
+
+  "latent_classes": {
+    "description": "Primary population classes and their sampling parameters. Class proportions sum to N_total.",
+    "classes": [
+      {
+        "label": "Casual",
+        "proportion": 0.60,
+        "count_expected": 13200,
+        "AOV_log_space": { "mu": 4.0, "sigma": 0.7 },
+        "sessions_poisson_lambda": 1.8,
+        "engagement_beta": { "alpha": 2.0, "beta": 5.0 },
+        "class_profit_modifier": -0.05,
+        "notes": "Lower AOV, low engagement; majority of dataset."
+      },
+      {
+        "label": "Regular",
+        "proportion": 0.30,
+        "count_expected": 6600,
+        "AOV_log_space": { "mu": 5.0, "sigma": 0.6 },
+        "sessions_poisson_lambda": 4.0,
+        "engagement_beta": { "alpha": 3.0, "beta": 3.5 },
+        "class_profit_modifier": 0.00,
+        "notes": "Moderate AOV, moderate engagement."
+      },
+      {
+        "label": "VIP",
+        "proportion": 0.06,
+        "count_expected": 1320,
+        "AOV_log_space": { "mu": 6.7, "sigma": 0.7 },
+        "sessions_poisson_lambda": 8.0,
+        "engagement_beta": { "alpha": 4.0, "beta": 2.0 },
+        "class_profit_modifier": 0.10,
+        "notes": "High AOV, higher sessions/engagement, VIP tail."
+      },
+      {
+        "label": "Dormant",
+        "proportion": 0.04,
+        "count_expected": 880,
+        "AOV_log_space": { "mu": 4.8, "sigma": 0.85 },
+        "sessions_poisson_lambda": 0.6,
+        "engagement_beta": { "alpha": 1.2, "beta": 6.0 },
+        "class_profit_modifier": -0.10,
+        "notes": "Low recent sessions/engagement; some may have high AOV via special cohort injection."
+      }
+    ]
+  },
+
+  "special_cohorts": {
+    "description": "Targeted small groups injected to ensure merging/edge-case behavior. These are subsets of class counts above (not additional rows).",
+    "cohorts": [
+      {
+        "id": "VIP_LowEng_LowProf",
+        "assigned_class": "VIP",
+        "count": 200,
+        "overrides": {
+          "engagement_beta": { "alpha": 1.0, "beta": 8.0 },
+          "profitability_range": [0.05, 0.30]
+        },
+        "purpose": "Small VIP group with low engagement & low profitability to force merges / test rare but high-AOV contradictory behavior."
+      },
+      {
+        "id": "Dormant_HighAOV",
+        "assigned_class": "Dormant",
+        "count": 150,
+        "overrides": {
+          "AOV_log_space": { "mu": 6.5, "sigma": 0.6 },
+          "engagement_beta": { "alpha": 1.0, "beta": 8.0 }
+        },
+        "purpose": "Dormant users with unusually high AOV (contradiction) to test segmentation robustness."
+      },
+      {
+        "id": "Regional_Niche",
+        "assigned_class": "Casual",
+        "count": 120,
+        "overrides": {
+          "region": "NicheRegionX",
+          "AOV_bias": "slightly_higher",
+          "engagement_beta": { "alpha": 2.0, "beta": 6.0 }
+        },
+        "purpose": "Small regional cohort to test geo-based merges."
+      }
+    ],
+    "total_special_cohorts_count": 470,
+    "note": "These cohorts must be sampled from their assigned class pools so class counts remain consistent with proportions."
+  },
+
+  "injections": {
+    "aov_tie_values": { "values": [4990, 9990, 19990], "count_total": 500 },
+    "aov_outliers_count": 12
+  },
+
+  "field_generation_rules": {
+    "user_id": {
+      "format": "U0000001..U{N_total in zero-padded width}",
+      "unique": true
+    },
+    "cart_abandoned_date": {
+      "assignment": "Each day d gets c[d] users; map day index to actual calendar date in the chosen month."
+    },
+    "last_order_date": {
+      "first_time_rate_source": "meta.first_time_rate",
+      "behavior": "For first-time customers (sampled by meta.first_time_rate), last_order_date will be NULL. For others, sample recency buckets (1-90, 91-365, 366-720 days before cart_abandoned_date).",
+      "note": "Only last_order_date is allowed to be NULL (only for first-time users). engagement_score & profitability_score remain non-missing."
+    },
+    "avg_order_value": {
+      "sampling": "lognormal using class AOV_log_space(mu,sigma), then round to nearest 10, clamp min 50",
+      "outliers": {
+        "count": 12,
+        "rule": "randomly select 12 users and multiply their sampled AOV by 10"
+      },
+      "tie_injection_values": {
+        "values": [4990, 9990, 19990],
+        "count_total": 500,
+        "note": "Distribute ~500 users exactly to these AOV values (to create many ties at percentile boundaries)"
+      }
+    },
+    "sessions_last_30d": {
+      "sampling": "Poisson with lambda = class.sessions_poisson_lambda; allow zeros; clamp at 0"
+    },
+    "num_cart_items": {
+      "sampling": "Poisson baseline λ=2; if AOV_norm > 0.7 then add +1; clamp minimum 1",
+      "upper_tail": "allow occasional values >15 (rare)"
+    },
+    "engagement_score": {
+      "missing_rate": 0.0,
+      "sampling": "eng_base ~ Beta(class.engagement_beta.alpha, class.engagement_beta.beta); sessions_norm factor: sessions_norm = clamp((sessions - mean_sessions)/std_sessions, -1,1); engagement = clamp(eng_base + 0.12 * sessions_norm + Normal(0,0.03), 0,1)",
+      "rounding": 3,
+      "note": "Always present (no missing values)."
+    },
+    "profitability_score": {
+      "missing_rate": 0.0,
+      "sampling": "profit_base = 0.15 + 0.7 * AOV_norm + class_profit_modifier + Normal(0,0.05); clip to [0,1]; special-case ~0.5% invertions (low profit despite high AOV)",
+      "rounding": 3,
+      "note": "Always present (no missing values)."
+    },
+    "region": {
+      "optional": true,
+      "distribution": "choose from a small set of regions; ensure one rare region matches 'Regional_Niche'"
+    }
+  },
+
+  "normalization_and_postprocessing": {
+    "AOV_normalization_for_profit": "min-max across all rows used for profit formula (store raw AOV also)",
+    "rounding": {
+      "AOV": "nearest 10",
+      "engagement": "3 decimals",
+      "profitability": "3 decimals"
+    },
+    "ties_handling_hint": "When computing percentile cutoffs at segmentation time, use deterministic policy: compute p20/p50/p80 using 'inclusive' method (e.g., numpy.percentile default) and be explicit about <= vs > for boundary rules.",
+    "seed_note": "Use RNG seed provided in meta.seed for all sampling steps (class assignment, daily sampling, cohort assignment, outlier selection) to ensure reproducibility."
+  },
+
+  "validation_checks_to_produce_after_generation": {
+    "counts": ["N_total", "daily_counts array (30)", "N_universe for each sliding 7-day window (1..24 windows)"],
+    "uniqueness": "user_id uniqueness check",
+    "missing_value_report": {
+      "columns": ["engagement_score", "profitability_score", "last_order_date"],
+      "counts_expected": { "engagement_score": "0", "profitability_score": "0", "last_order_date": "approx meta.first_time_rate * N_total (e.g., 12%)" }
+    },
+    "percentiles": "AOV p20, p50, p80; engagement median; profitability median",
+    "class_counts": "actual counts per class and per special cohort (must match intended proportions)",
+    "outliers_list": "list of user_ids flagged as AOV outliers",
+    "tie_value_counts": "counts for the injected exact AOV tie values"
+  },
+
+  "min_max_segment_rules": {
+    "compute_at_runtime": "Given N_universe (count of users filtered to last 7 days), compute min and max as follows:",
+    "min_segment_size": "if N_universe >= 10000 then 500 else max(50, floor(0.005 * N_universe))",
+    "max_segment_size": "min(20000, floor(0.4 * N_universe))",
+    "merge_policy": [
+      "If leaf segment size < min_segment_size: try merging with sibling leaf (same parent).",
+      "If still < min, merge into parent node and re-evaluate.",
+      "Repeat until >= min or until top-level ELSE (global other) bucket is reached.",
+      "Record merged_from -> merged_into in output."
+    ]
+  },
+
+  "export_and_report": {
+    "primary_output_csv": "simulated_cart_abandons.csv (columns specified in meta.output_columns)",
+    "user_to_segment_map_output": "user_segment_map.csv (to be created after segmentation step)",
+    "generation_report_json": {
+      "file_name": "generation_report.json",
+      "contents": [
+        "seed",
+        "N_total",
+        "daily_counts",
+        "class_counts",
+        "special_cohort_counts",
+        "injected_outlier_user_ids",
+        "injected_tie_values_counts",
+        "missing_value_counts (eng/profit = 0; last_order_date = approx meta.first_time_rate * N_total)",
+        "percentiles_for_AOV_eng_profit"
+      ]
+    }
+  },
+
+  "quality_assurance_notes": {
+    "reproducibility": "Use exact seed everywhere. Save the report JSON and random state if possible.",
+    "no_missing_values_note": "engagement_score and profitability_score will have no missing values. last_order_date may be NULL for first-time users only (approx meta.first_time_rate fraction).",
+    "sliding_window_expectation": "Because we use weighted days + NegBin overdispersion + occasional major spikes (days 6, 15, 24), sliding 7-day windows will produce realistic variation in N_universe (examples: some windows ~3k, many ~4-7k, windows including major spikes can reach ~8-12k).",
+    "developer_remark": "This JSON is exhaustive and intended to be machine-readable. The generator should set last_order_date = NULL for first-time users only."
+  }
+}
