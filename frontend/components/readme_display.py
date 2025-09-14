@@ -510,23 +510,27 @@ def display_project_readme():
     st.header("Conclusion")
     
     st.markdown("""
-    This MECE segmentation system provides a robust, scalable foundation for cart abandoner retention campaigns. 
-    The combination of realistic synthetic data generation, principled segmentation methodology, and comprehensive 
-    validation ensures marketing teams can confidently deploy targeted campaigns with clear success metrics and 
-    measurable business impact.
+    This segmentation system provides a practical tool for creating customer segments from cart abandonment data. 
+    It uses a decision tree approach to ensure every customer gets placed in exactly one segment, making it easy 
+    for marketing teams to target different groups with specific campaigns.
     
-    **Key Strengths:**
-    - Mathematically rigorous MECE compliance
-    - Business-aligned scoring methodology  
-    - Comprehensive quality assurance
-    - Scalable technical architecture
-    - Actionable segment definitions
+    **What This System Does Well:**
+    - **Creates clear segments** that don't overlap with each other
+    - **Provides actionable results** with specific campaign recommendations
+    - **Uses simple logic** that's easy to understand and explain
+    - **Handles size constraints** to ensure segments are big enough for campaigns
+    - **Generates comprehensive reports** with all the details you need
     
-    **Future Enhancements:**
-    - Real-time data integration capabilities
-    - Advanced ML-based scoring models
-    - Dynamic threshold optimization
-    - Multi-channel campaign integration
+    **Current Limitations:**
+    - **Basic validation only** - focuses on core logic rather than extensive testing
+    - **Single-threaded processing** - works well for typical datasets but not optimized for huge volumes
+    - **Fixed scoring weights** - uses standard business assumptions rather than custom-tuned weights
+    
+    **Future Improvements:**
+    - Add real data integration instead of just synthetic data
+    - Include A/B testing capabilities to measure campaign performance
+    - Add more flexible scoring and threshold options
+    - Include automated campaign execution integrations
     """)
 
 def show_readme_modal():

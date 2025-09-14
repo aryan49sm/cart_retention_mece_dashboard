@@ -6,7 +6,7 @@ from components.csv_display import display_segments_summary, display_user_segmen
 from components.readme_display import show_readme_modal
 
 # Add parent directory to path to import segmentation modules
-parent_dir = os.path.abspath("..")
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 

@@ -1,5 +1,7 @@
 venv/
 experiments/
+*_old.py
 __pycache__/
 output_*/
 *_old.py
+myenv/

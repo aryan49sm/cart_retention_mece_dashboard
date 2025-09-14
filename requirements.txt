@@ -1,10 +1,10 @@
-pandas
-ydata-profiling
-setuptools
-wheel
-streamlit
-plotly
-numpy
-datetime
-pyvis
-networkx
+pandas==2.3.2
+ydata-profiling==4.16.1
+streamlit==1.49.1
+plotly==6.3.0
+numpy==2.1.3
+pyvis==0.3.2
+networkx==3.5
+setuptools==75.9.1
+wheel==0.45.1
+datetime== 5.5
