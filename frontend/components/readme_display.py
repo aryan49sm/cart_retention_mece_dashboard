@@ -190,30 +190,52 @@ def display_project_readme():
     **MECE Decision Tree Structure:**
     
     ```
-                          All Cart Abandoners (N=10,000)
-                                     │
-                              AOV > p80 Threshold?
-                             /                    \\
-                        Yes /                      \\ No
-                           /                        \\
-                  [High AOV Segment]         AOV > p20 Threshold?
-                                           /                    \\
-                                      Yes /                      \\ No
-                                         /                        \\
-                            Engagement > p50?              Profitability > p50?
-                             /           \\                  /               \\
-                        Yes /             \\ No         Yes /                 \\ No
-                           /               \\              /                   \\
-                  [Medium AOV +       [Medium AOV +   [Low AOV +           [Low AOV +
-                   High Engage]        Low Engage]     High Profit]         Low Profit]
+                                                  All Cart Abandoners
+                                                           |
+                                                  AOV Classification
+                    _______________________________________|_________________________________________
+                   |                                       |                                       |
+               Low AOV                                 Med AOV                                 High AOV
+            (≤ 20th %ile)                          (20th-80th %ile)                          (> 80th %ile)
+                   |                                       |                                       |
+                   |                                       |                                       |
+            Engagement Split                          Engagement Split                     Engagement Split
+             ________|________                     ________|________                       ________|__________
+            |                |                     |                |                      |                  |
+         Low Eng        High Eng                Low Eng        High Eng                 Low Eng          High Eng
+        (≤ 50th)        (> 50th)               (≤ 50th)        (> 50th)                (≤ 50th)          (> 50th)
+            |                |                     |                |                      |                  |
+            |                |                     |                |                      |                  |
+     Profitability       Profitability        Profitability     Profitability          Profitability     Profitability
+      ______|______      ______|_______      ______|_______     ______|_______       ______|_______     ______|_______
+     |             |     |             |     |             |    |             |      |             |    |             |
+    Low          High   Low          High   Low          High   Low          High   Low          High  Low          High
+    Prof         Prof   Prof         Prof   Prof         Prof   Prof         Prof   Prof         Prof  Prof         Prof
+     |             |     |             |     |             |     |             |     |             |    |             |
+     |             |     |             |     |             |     |             |     |             |    |             |
+    S1            S2    S3            S4     S5            S6    S7            S8    S9           S10  S11           S12
+
     ```
     
-    **Final Segments:**
-    - **High AOV:** Premium users requiring immediate retention focus
-    - **Medium AOV + High Engagement:** Core users with standard retention
-    - **Medium AOV + Low Engagement:** At-risk users needing intervention
-    - **Low AOV + High Profitability:** Price-sensitive users for discount campaigns
-    - **Low AOV + Low Profitability:** Dormant users for re-engagement
+    **Complete 12 MECE Segments (3×2×2 = 12):**
+    
+    **High AOV Segments (4):**
+    - **HighAOV_HighEng_HighProf:** Premium VIP customers - immediate white-glove retention
+    - **HighAOV_HighEng_LowProf:** High-value margin improvers - premium product upsells
+    - **HighAOV_LowEng_HighProf:** Profitable but disengaged - personalized re-engagement
+    - **HighAOV_LowEng_LowProf:** At-risk high spenders - urgent intervention required
+    
+    **Medium AOV Segments (4):**
+    - **MidAOV_HighEng_HighProf:** Core profitable customers - standard retention programs
+    - **MidAOV_HighEng_LowProf:** Engaged margin opportunities - product mix optimization
+    - **MidAOV_LowEng_HighProf:** Profitable but declining - targeted re-activation campaigns
+    - **MidAOV_LowEng_LowProf:** At-risk core customers - comprehensive intervention
+    
+    **Low AOV Segments (4):**
+    - **LowAOV_HighEng_HighProf:** Price-sensitive loyal customers - discount retention offers
+    - **LowAOV_HighEng_LowProf:** Budget-conscious browsers - volume-based incentives
+    - **LowAOV_LowEng_HighProf:** Dormant profitable users - win-back campaigns
+    - **LowAOV_LowEng_LowProf:** Lowest priority - minimal resource allocation
     
     **Actual Threshold Logic:**
     - **High AOV:** avg_order_value > 80th percentile
